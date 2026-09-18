@@ -1,0 +1,132 @@
+@page "/checklists/new"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@inject GearDataService DataService
+@inject NavigationManager Navigation
+
+<PageTitle>チェックリスト新規作成</PageTitle>
+
+<h1>チェックリストの新規作成</h1>
+
+<div class="form-grid">
+    <label>
+        チェックリスト名
+        <input @bind="title" placeholder="例：〇〇キャンプ場" />
+    </label>
+
+    <label>
+        使用日
+        <input type="date" @bind="eventDate" />
+    </label>
+</div>
+
+<div class="section-box">
+    <h3>ギアから選ぶ</h3>
+    @if (availableGears.Count == 0)
+    {
+        <p class="hint">登録されているギアがありません。</p>
+    }
+    else
+    {
+        <ul class="checklist-select-list">
+            @foreach (var gear in availableGears)
+            {
+                <li>
+                    <label class="checkbox-label">
+                        <input type="checkbox" checked="@selectedGearIds.Contains(gear.Id)"
+                               @onchange="e => ToggleGear(gear.Id, e.Value)" />
+                        @if (!string.IsNullOrEmpty(gear.PhotoDataUrl))
+                        {
+                            <img class="photo-thumb" src="@gear.PhotoDataUrl" alt="@gear.Name" />
+                        }
+                        @gear.Name
+                    </label>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+<div class="section-box">
+    <h3>セットから選ぶ（親のみ表示、選ぶと子も一緒に登録されます）</h3>
+    @if (availableSets.Count == 0)
+    {
+        <p class="hint">登録されているセットがありません。</p>
+    }
+    else
+    {
+        <ul class="checklist-select-list">
+            @foreach (var set in availableSets)
+            {
+                var name = DataService.GetSetDisplayName(set);
+                var photo = DataService.GetSetPhoto(set);
+
+                <li>
+                    <label class="checkbox-label">
+                        <input type="checkbox" checked="@selectedSetIds.Contains(set.Id)"
+                               @onchange="e => ToggleSet(set.Id, e.Value)" />
+                        @if (!string.IsNullOrEmpty(photo))
+                        {
+                            <img class="photo-thumb" src="@photo" alt="@name" />
+                        }
+                        @name
+                        <span class="hint">（子：@set.ChildGearIds.Count 件）</span>
+                    </label>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+<button class="btn btn-primary" @onclick="Submit">チェックリストを作成</button>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p class="error-message">@errorMessage</p>
+}
+
+@code {
+    private string title = string.Empty;
+    private DateTime eventDate = DateTime.Today;
+    private string errorMessage = string.Empty;
+
+    private HashSet<Guid> selectedGearIds = new();
+    private HashSet<Guid> selectedSetIds = new();
+
+    private List<GearItem> availableGears => DataService.Gears.Where(g => !g.IsDeleted).OrderBy(g => g.Name).ToList();
+    private List<SetItem> availableSets => DataService.Sets.OrderBy(s => s.SortOrder).ToList();
+
+    private void ToggleGear(Guid gearId, object? checkedValue)
+    {
+        var isChecked = checkedValue is bool b && b;
+        if (isChecked)
+        {
+            selectedGearIds.Add(gearId);
+        }
+        else
+        {
+            selectedGearIds.Remove(gearId);
+        }
+    }
+
+    private void ToggleSet(Guid setId, object? checkedValue)
+    {
+        var isChecked = checkedValue is bool b && b;
+        if (isChecked)
+        {
+            selectedSetIds.Add(setId);
+        }
+        else
+        {
+            selectedSetIds.Remove(setId);
+        }
+    }
+
+    private void Submit()
+    {
+        if (DataService.CreateChecklist(title, eventDate, selectedGearIds, selectedSetIds, out errorMessage))
+        {
+            Navigation.NavigateTo("/checklists");
+        }
+    }
+}

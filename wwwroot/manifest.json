@@ -1,0 +1,21 @@
+{
+  "name": "キャンプギア管理",
+  "short_name": "ギア管理",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#2b3a42",
+  "theme_color": "#2b3a42",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

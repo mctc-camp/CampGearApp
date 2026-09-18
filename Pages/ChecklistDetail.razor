@@ -1,0 +1,100 @@
+@page "/checklists/{ChecklistId:guid}"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@inject GearDataService DataService
+@inject NavigationManager Navigation
+
+<PageTitle>チェックリスト詳細</PageTitle>
+
+@if (checklist == null)
+{
+    <p class="error-message">チェックリストが見つかりませんでした。</p>
+}
+else
+{
+    <h1>@checklist.Title</h1>
+    <p class="hint">使用日：@checklist.EventDate.ToString("yyyy/MM/dd")</p>
+
+    @if (checklist.EventDate < DateTime.Today)
+    {
+        <p class="hint">※使用日が過去のため、セットの中身は登録時点の内容で固定表示しています。</p>
+    }
+    else
+    {
+        <p class="hint">※使用日が今日以降のため、セットの中身は最新の内容を表示しています。</p>
+    }
+
+    <ul class="checklist-entry-list">
+        @foreach (var entry in checklist.Entries)
+        {
+            var (name, photo) = DataService.GetDisplayParentInfo(entry);
+
+            <li class="checklist-entry">
+                <div class="checklist-entry-row">
+                    <input type="checkbox" @bind="entry.IsChecked" @bind:after="DataService.SaveChecklistChange" />
+                    @if (!string.IsNullOrEmpty(photo))
+                    {
+                        <img class="photo-thumb" src="@photo" alt="@name" />
+                    }
+                    <span>@name</span>
+
+                    @if (entry.EntryType == ChecklistEntryType.Set)
+                    {
+                        <button class="btn btn-small" @onclick="() => ToggleExpand(entry)">
+                            @(entry.IsExpanded ? "閉じる" : "内訳を見る")
+                        </button>
+                    }
+                </div>
+
+                @if (entry.EntryType == ChecklistEntryType.Set && entry.IsExpanded)
+                {
+                    var children = DataService.GetDisplayChildren(checklist, entry);
+
+                    <ul class="checklist-child-list">
+                        @if (children.Count == 0)
+                        {
+                            <li class="hint">子が登録されていません。</li>
+                        }
+                        else
+                        {
+                            @foreach (var child in children)
+                            {
+                                <li class="checklist-child-item">
+                                    @if (!string.IsNullOrEmpty(child.PhotoDataUrl))
+                                    {
+                                        <img class="photo-thumb" src="@child.PhotoDataUrl" alt="@child.Name" />
+                                    }
+                                    <span>┗ @child.Name</span>
+                                </li>
+                            }
+                        }
+                    </ul>
+                }
+            </li>
+        }
+    </ul>
+
+    <button class="btn btn-small" @onclick="BackToList">一覧に戻る</button>
+}
+
+@code {
+    [Parameter]
+    public Guid ChecklistId { get; set; }
+
+    private ChecklistItem? checklist;
+
+    protected override void OnParametersSet()
+    {
+        checklist = DataService.FindChecklistById(ChecklistId);
+    }
+
+    private void ToggleExpand(ChecklistEntry entry)
+    {
+        entry.IsExpanded = !entry.IsExpanded;
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/checklists");
+    }
+}

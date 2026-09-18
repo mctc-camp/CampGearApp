@@ -1,0 +1,181 @@
+@page "/sets"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@inject GearDataService DataService
+
+<PageTitle>セット管理</PageTitle>
+
+<h1>セット管理</h1>
+
+<div class="section-box">
+    <h3>新しいセットを登録</h3>
+
+    <div class="form-grid">
+        <label>
+            親をギアから選ぶ（任意）
+            <select @bind="newSetLinkedGearId">
+                <option value="">（ギアを選ばず名前だけで登録する）</option>
+                @foreach (var gear in DataService.Gears.Where(g => !g.IsDeleted).OrderBy(g => g.Name))
+                {
+                    <option value="@gear.Id">@gear.Category / @gear.Name</option>
+                }
+            </select>
+        </label>
+
+        <label>
+            セット名（上でギアを選んだ場合はここは無視されます）
+            <input @bind="newSetManualName" placeholder="例：焚火セット" />
+        </label>
+    </div>
+
+    <button class="btn btn-primary" @onclick="AddSet">セットを追加</button>
+
+    @if (!string.IsNullOrEmpty(addSetError))
+    {
+        <p class="error-message">@addSetError</p>
+    }
+</div>
+
+<div class="section-box">
+    <h3>登録済みのセット</h3>
+
+    @if (DataService.Sets.Count == 0)
+    {
+        <p class="hint">まだセットが登録されていません。</p>
+    }
+    else
+    {
+        @foreach (var set in DataService.Sets.OrderBy(s => s.SortOrder))
+        {
+            var photo = DataService.GetSetPhoto(set);
+            var name = DataService.GetSetDisplayName(set);
+
+            <div class="set-box">
+                <div class="set-header">
+                    @if (!string.IsNullOrEmpty(photo))
+                    {
+                        <img class="photo-thumb" src="@photo" alt="@name" />
+                    }
+                    <span class="set-name">@name</span>
+
+                    <button class="btn btn-small btn-danger" @onclick="() => RemoveSet(set)">セットを削除</button>
+                </div>
+
+                <div class="child-list">
+                    @if (set.ChildGearIds.Count == 0)
+                    {
+                        <p class="hint">子が登録されていません。</p>
+                    }
+                    else
+                    {
+                        @foreach (var childId in set.ChildGearIds)
+                        {
+                            var childGear = DataService.FindGearById(childId);
+                            if (childGear != null)
+                            {
+                                <div class="child-item">
+                                    @if (!string.IsNullOrEmpty(childGear.PhotoDataUrl))
+                                    {
+                                        <img class="photo-thumb" src="@childGear.PhotoDataUrl" alt="@childGear.Name" />
+                                    }
+                                    <span>┗ @childGear.Name</span>
+                                    <button class="btn btn-small btn-danger" @onclick="() => RemoveChild(set, childId)">削除</button>
+                                </div>
+                            }
+                        }
+                    }
+                </div>
+
+                <div class="form-row add-child-row">
+                    <select @bind:get="GetSelectedChildId(set.Id)" @bind:set="v => SetSelectedChildId(set.Id, v)">
+                        <option value="">子に追加するギアを選択</option>
+                        @foreach (var gear in DataService.Gears.Where(g => !g.IsDeleted).OrderBy(g => g.Name))
+                        {
+                            <option value="@gear.Id">@gear.Category / @gear.Name</option>
+                        }
+                    </select>
+                    <button class="btn btn-small btn-primary" @onclick="() => AddChild(set)">子を追加</button>
+                </div>
+
+                @if (childErrors.TryGetValue(set.Id, out var childError) && !string.IsNullOrEmpty(childError))
+                {
+                    <p class="error-message">@childError</p>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private string newSetLinkedGearId = string.Empty;
+    private string newSetManualName = string.Empty;
+    private string addSetError = string.Empty;
+
+    // セットごとに「これから追加する子ギア」の選択状態を保持
+    private Dictionary<Guid, string> selectedChildGearId = new();
+    private Dictionary<Guid, string> childErrors = new();
+
+    private string GetSelectedChildId(Guid setId)
+    {
+        return selectedChildGearId.TryGetValue(setId, out var value) ? value : string.Empty;
+    }
+
+    private void SetSelectedChildId(Guid setId, string value)
+    {
+        selectedChildGearId[setId] = value;
+    }
+
+    private void AddSet()
+    {
+        Guid? linkedId = null;
+        if (!string.IsNullOrEmpty(newSetLinkedGearId) && Guid.TryParse(newSetLinkedGearId, out var parsedId))
+        {
+            linkedId = parsedId;
+        }
+
+        if (DataService.AddSet(linkedId, newSetManualName, out addSetError))
+        {
+            newSetLinkedGearId = string.Empty;
+            newSetManualName = string.Empty;
+        }
+    }
+
+    private void RemoveSet(SetItem set)
+    {
+        DataService.RemoveSet(set);
+        selectedChildGearId.Remove(set.Id);
+        childErrors.Remove(set.Id);
+    }
+
+    private void AddChild(SetItem set)
+    {
+        childErrors[set.Id] = string.Empty;
+
+        var selectedText = GetSelectedChildId(set.Id);
+        if (string.IsNullOrEmpty(selectedText))
+        {
+            childErrors[set.Id] = "追加するギアを選択してください。";
+            return;
+        }
+
+        if (!Guid.TryParse(selectedText, out var gearId))
+        {
+            childErrors[set.Id] = "選択が不正です。";
+            return;
+        }
+
+        if (DataService.AddChildToSet(set, gearId, out var error))
+        {
+            SetSelectedChildId(set.Id, string.Empty);
+        }
+        else
+        {
+            childErrors[set.Id] = error;
+        }
+    }
+
+    private void RemoveChild(SetItem set, Guid gearId)
+    {
+        DataService.RemoveChildFromSet(set, gearId);
+    }
+}

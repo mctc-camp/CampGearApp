@@ -1,0 +1,372 @@
+@page "/gear/import"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@using System.Text
+@using System.Globalization
+@inject GearDataService DataService
+
+<PageTitle>CSV一括登録</PageTitle>
+
+<h1>CSVでギアを一括登録</h1>
+
+<div class="section-box">
+    <p>以下の順番の列を持つCSVファイルを用意してください（1行目は見出し行として無視されます）。</p>
+
+    <div class="table-scroll">
+        <table class="gear-table">
+            <thead>
+                <tr>
+                    <th>列順</th>
+                    <th>項目名</th>
+                    <th>入力例</th>
+                    <th>備考</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>カテゴリ</td><td>テント</td><td>未登録の場合は自動でカテゴリマスタに追加されます</td></tr>
+                <tr><td>2</td><td>ギア名</td><td>ステラリッジ2</td><td>必須</td></tr>
+                <tr><td>3</td><td>重量(g)</td><td>1800</td><td>数字のみ</td></tr>
+                <tr><td>4</td><td>パッキング対象</td><td>1</td><td>1=対象 / 0=対象外</td></tr>
+                <tr><td>5</td><td>メーカー</td><td>モンベル</td><td>省略可</td></tr>
+                <tr><td>6</td><td>URL</td><td>https://...</td><td>省略可</td></tr>
+                <tr><td>7</td><td>購入日</td><td>2024-05-01</td><td>省略可（yyyy-MM-dd形式）</td></tr>
+                <tr><td>8</td><td>購入場所</td><td>好日山荘</td><td>省略可</td></tr>
+                <tr><td>9</td><td>購入金額</td><td>32000</td><td>省略可・数字のみ</td></tr>
+                <tr><td>10</td><td>メモ</td><td>2人用</td><td>省略可</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p class="hint">
+        写真はCSVでは登録できません。登録後に「ギア登録」画面から個別に追加してください。<br />
+        文字コードはShift-JIS・UTF-8のどちらでも自動判定して読み込みます。
+    </p>
+
+    <p>コピーしてExcelに貼り付けるためのサンプル（見出し行つき）です。</p>
+    <textarea readonly rows="4" class="sample-csv" onclick="this.select()">@sampleCsv</textarea>
+</div>
+
+<div class="section-box">
+    <InputFile OnChange="OnFileSelected" accept=".csv" />
+
+    @if (isLoading)
+    {
+        <p class="hint">読み込み中です…</p>
+    }
+
+    @if (!string.IsNullOrEmpty(loadErrorMessage))
+    {
+        <p class="error-message">@loadErrorMessage</p>
+    }
+
+    @if (previewRows.Count > 0)
+    {
+        <h3>プレビュー（@previewRows.Count(r => r.IsValid)件が登録可能 / @previewRows.Count(r => !r.IsValid)件がエラー）</h3>
+
+        <div class="table-scroll">
+            <table class="gear-table">
+                <thead>
+                    <tr>
+                        <th>行</th>
+                        <th>状態</th>
+                        <th>カテゴリ</th>
+                        <th>ギア名</th>
+                        <th>重量(g)</th>
+                        <th>パック</th>
+                        <th>メーカー</th>
+                        <th>購入日</th>
+                        <th>購入金額</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in previewRows)
+                    {
+                        <tr class="@(row.IsValid ? "" : "row-error")">
+                            <td>@row.LineNumber</td>
+                            <td>@(row.IsValid ? "OK" : row.ErrorMessage)</td>
+                            <td>@row.Gear?.Category</td>
+                            <td>@row.Gear?.Name</td>
+                            <td>@row.Gear?.WeightGram</td>
+                            <td>@(row.Gear?.IsPacked == true ? "対象" : "対象外")</td>
+                            <td>@row.Gear?.Maker</td>
+                            <td>@(row.Gear?.PurchaseDate?.ToString("yyyy/MM/dd"))</td>
+                            <td>@(row.Gear?.PurchasePrice.HasValue == true ? $"{row.Gear.PurchasePrice:N0}円" : "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="form-row">
+            <button class="btn btn-primary"
+                    disabled="@(!previewRows.Any(r => r.IsValid))"
+                    @onclick="ImportValidRows">
+                有効な@(previewRows.Count(r => r.IsValid))件を登録する
+            </button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(importResultMessage))
+    {
+        <p class="import-result">@importResultMessage</p>
+    }
+</div>
+
+@code {
+    private const string sampleCsv =
+        "カテゴリ,ギア名,重量g,パッキング対象,メーカー,URL,購入日,購入場所,購入金額,メモ\n" +
+        "テント,ステラリッジ2,1800,1,モンベル,https://example.com,2024-05-01,好日山荘,32000,2人用\n" +
+        "クッカー,エバニューチタンクッカー,180,1,エバニュー,,2023-11-10,,3500,";
+
+    private bool isLoading;
+    private string loadErrorMessage = string.Empty;
+    private string importResultMessage = string.Empty;
+    private List<ImportRow> previewRows = new();
+
+    private class ImportRow
+    {
+        public int LineNumber { get; set; }
+        public bool IsValid { get; set; }
+        public string ErrorMessage { get; set; } = string.Empty;
+        public GearItem? Gear { get; set; }
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        isLoading = true;
+        loadErrorMessage = string.Empty;
+        importResultMessage = string.Empty;
+        previewRows.Clear();
+
+        try
+        {
+            var file = e.File;
+            const long maxFileSize = 5 * 1024 * 1024; // 5MB
+
+            byte[] bytes;
+            using (var stream = file.OpenReadStream(maxFileSize))
+            using (var ms = new MemoryStream())
+            {
+                await stream.CopyToAsync(ms);
+                bytes = ms.ToArray();
+            }
+
+            var text = DecodeCsvBytes(bytes);
+            previewRows = ParseCsv(text);
+        }
+        catch (Exception ex)
+        {
+            loadErrorMessage = $"ファイルの読み込みに失敗しました：{ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // ---- 文字コード自動判定（UTF-8 with BOM / UTF-8 / Shift-JIS） ----
+    private string DecodeCsvBytes(byte[] bytes)
+    {
+        // UTF-8 BOMがあればUTF-8として読む
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+        {
+            return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
+        }
+
+        // BOMなしの場合、UTF-8として妥当かどうかを試し、ダメならShift-JISとして読む
+        try
+        {
+            var utf8Strict = new UTF8Encoding(false, true);
+            return utf8Strict.GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            var sjis = Encoding.GetEncoding("shift_jis");
+            return sjis.GetString(bytes);
+        }
+    }
+
+    // ---- CSV解析（ダブルクォート対応の簡易パーサー） ----
+    private List<ImportRow> ParseCsv(string csvText)
+    {
+        var result = new List<ImportRow>();
+        var lines = csvText.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var lineNumber = i + 1;
+            var line = lines[i];
+
+            if (lineNumber == 1) continue; // 見出し行はスキップ
+            if (string.IsNullOrWhiteSpace(line)) continue; // 空行はスキップ
+
+            var cols = ParseCsvLine(line);
+
+            var row = new ImportRow { LineNumber = lineNumber };
+
+            var category = cols.ElementAtOrDefault(0)?.Trim() ?? "";
+            var name = cols.ElementAtOrDefault(1)?.Trim() ?? "";
+            var weightText = cols.ElementAtOrDefault(2)?.Trim() ?? "";
+            var packedText = cols.ElementAtOrDefault(3)?.Trim() ?? "";
+            var maker = cols.ElementAtOrDefault(4)?.Trim() ?? "";
+            var url = cols.ElementAtOrDefault(5)?.Trim() ?? "";
+            var dateText = cols.ElementAtOrDefault(6)?.Trim() ?? "";
+            var store = cols.ElementAtOrDefault(7)?.Trim() ?? "";
+            var priceText = cols.ElementAtOrDefault(8)?.Trim() ?? "";
+            var memo = cols.ElementAtOrDefault(9)?.Trim() ?? "";
+
+            if (string.IsNullOrEmpty(category))
+            {
+                row.IsValid = false;
+                row.ErrorMessage = "カテゴリが空です";
+                result.Add(row);
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(name))
+            {
+                row.IsValid = false;
+                row.ErrorMessage = "ギア名が空です";
+                result.Add(row);
+                continue;
+            }
+
+            if (!int.TryParse(weightText, out var weight))
+            {
+                row.IsValid = false;
+                row.ErrorMessage = $"重量が数字ではありません（{weightText}）";
+                result.Add(row);
+                continue;
+            }
+
+            var isPacked = packedText == "1" || packedText.Equals("TRUE", StringComparison.OrdinalIgnoreCase) || packedText == "有";
+
+            DateTime? purchaseDate = null;
+            if (!string.IsNullOrEmpty(dateText))
+            {
+                if (DateTime.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
+                {
+                    purchaseDate = parsedDate;
+                }
+                else
+                {
+                    row.IsValid = false;
+                    row.ErrorMessage = $"購入日の形式が不正です（{dateText}）";
+                    result.Add(row);
+                    continue;
+                }
+            }
+
+            int? purchasePrice = null;
+            if (!string.IsNullOrEmpty(priceText))
+            {
+                if (int.TryParse(priceText, out var parsedPrice))
+                {
+                    purchasePrice = parsedPrice;
+                }
+                else
+                {
+                    row.IsValid = false;
+                    row.ErrorMessage = $"購入金額が数字ではありません（{priceText}）";
+                    result.Add(row);
+                    continue;
+                }
+            }
+
+            row.IsValid = true;
+            row.Gear = new GearItem
+            {
+                Category = category,
+                Name = name,
+                WeightGram = weight,
+                IsPacked = isPacked,
+                Maker = maker,
+                Url = url,
+                PurchaseDate = purchaseDate,
+                PurchaseStore = store,
+                PurchasePrice = purchasePrice,
+                Memo = memo
+            };
+
+            result.Add(row);
+        }
+
+        return result;
+    }
+
+    private List<string> ParseCsvLine(string line)
+    {
+        var result = new List<string>();
+        var current = new StringBuilder();
+        bool inQuotes = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        current.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            else
+            {
+                if (c == '"')
+                {
+                    inQuotes = true;
+                }
+                else if (c == ',')
+                {
+                    result.Add(current.ToString());
+                    current.Clear();
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+        }
+
+        result.Add(current.ToString());
+        return result;
+    }
+
+    // ---- 一括登録実行 ----
+    private void ImportValidRows()
+    {
+        int successCount = 0;
+
+        foreach (var row in previewRows.Where(r => r.IsValid && r.Gear != null))
+        {
+            var gear = row.Gear!;
+
+            // 未登録カテゴリは自動でカテゴリマスタに追加
+            if (!DataService.Categories.Any(c => c.Name == gear.Category))
+            {
+                DataService.AddCategory(gear.Category, out _);
+            }
+
+            if (DataService.AddGear(gear, out _))
+            {
+                successCount++;
+            }
+        }
+
+        importResultMessage = $"{successCount}件のギアを登録しました。「ギア一覧」画面で確認してください。";
+        previewRows.Clear();
+    }
+}

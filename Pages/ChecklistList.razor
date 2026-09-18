@@ -1,0 +1,74 @@
+@page "/checklists"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@inject GearDataService DataService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>チェックリスト一覧</PageTitle>
+
+<h1>チェックリスト一覧</h1>
+
+<div class="form-row">
+    <button class="btn btn-primary" @onclick="GoToNew">新しいチェックリストを作成</button>
+</div>
+
+@if (DataService.Checklists.Count == 0)
+{
+    <p class="hint">まだチェックリストがありません。</p>
+}
+else
+{
+    <div class="table-scroll">
+        <table class="gear-table">
+            <thead>
+                <tr>
+                    <th>使用日</th>
+                    <th>チェックリスト名</th>
+                    <th>進捗</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var checklist in DataService.Checklists.OrderByDescending(c => c.EventDate))
+                {
+                    var total = checklist.Entries.Count;
+                    var checkedCount = checklist.Entries.Count(e => e.IsChecked);
+
+                    <tr>
+                        <td>@checklist.EventDate.ToString("yyyy/MM/dd")</td>
+                        <td>@checklist.Title</td>
+                        <td>@checkedCount / @total</td>
+                        <td>
+                            <button class="btn btn-small btn-primary" @onclick="() => OpenChecklist(checklist)">開く</button>
+                            <button class="btn btn-small btn-danger" @onclick="() => DeleteChecklist(checklist)">削除</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private void GoToNew()
+    {
+        Navigation.NavigateTo("/checklists/new");
+    }
+
+    private void OpenChecklist(ChecklistItem checklist)
+    {
+        Navigation.NavigateTo($"/checklists/{checklist.Id}");
+    }
+
+    private async Task DeleteChecklist(ChecklistItem checklist)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"「{checklist.Title}」を削除します。よろしいですか？（この操作は元に戻せません）");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        DataService.RemoveChecklist(checklist);
+    }
+}

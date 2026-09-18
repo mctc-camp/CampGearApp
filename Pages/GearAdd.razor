@@ -1,0 +1,282 @@
+@page "/gear/add"
+@page "/gear/edit/{GearId:guid}"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@inject GearDataService DataService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>@(IsEditMode ? "ギア編集" : "ギア登録")</PageTitle>
+
+<h1>@(IsEditMode ? "ギアの編集" : "ギアの登録")</h1>
+
+@if (DataService.Categories.Count == 0)
+{
+    <p class="hint">
+        カテゴリが1件も登録されていません。先に
+        <a href="/categories">カテゴリ管理画面</a>
+        でカテゴリを登録してください。
+    </p>
+}
+
+<EditForm Model="newGear" OnValidSubmit="SubmitGear">
+    <div class="form-grid">
+
+        <label>
+            カテゴリ
+            <select @bind="newGear.Category">
+                <option value="">選択してください</option>
+                @foreach (var cat in DataService.Categories.OrderBy(c => c.SortOrder))
+                {
+                    <option value="@cat.Name">@cat.Name</option>
+                }
+            </select>
+        </label>
+
+        <label>
+            ギア名
+            <input @bind="newGear.Name" placeholder="例：ステラリッジ2" />
+        </label>
+
+        <label>
+            重量(g)
+            <input type="number" @bind="newGear.WeightGram" min="0" />
+        </label>
+
+        <label class="checkbox-label">
+            <input type="checkbox" @bind="newGear.IsPacked" />
+            パッキング対象にする
+        </label>
+
+        <label class="checkbox-label">
+            <input type="checkbox" @bind="newGear.IsDeleted" />
+            紛失・廃棄済み等
+        </label>
+
+        <label>
+            メーカー名
+            <input @bind="newGear.Maker" placeholder="例：モンベル" />
+        </label>
+
+        <label class="full-width url-field">
+            URL
+            <div class="url-input-row">
+                <input @bind="newGear.Url" placeholder="https://..." />
+                @if (!string.IsNullOrEmpty(newGear.Url))
+                {
+                    <a class="btn btn-small btn-primary" href="@newGear.Url" target="_blank" rel="noopener noreferrer">
+                        このURLを開く
+                    </a>
+                }
+            </div>
+        </label>
+
+        <label>
+            購入日
+            <input type="date" @bind="newGear.PurchaseDate" />
+        </label>
+
+        <label>
+            購入場所
+            <input @bind="newGear.PurchaseStore" placeholder="例：好日山荘" />
+        </label>
+
+        <label>
+            購入金額(円)
+            <input type="number" @bind="newGear.PurchasePrice" min="0" />
+        </label>
+
+        <label class="full-width">
+            メモ
+            <textarea @bind="newGear.Memo" rows="2"></textarea>
+        </label>
+
+        <label class="full-width">
+            写真
+            <InputFile OnChange="OnPhotoSelected" accept="image/*" />
+
+            @if (isUploadingPhoto)
+            {
+                <p class="hint">写真をアップロード中です…</p>
+            }
+
+            @{
+                var previewUrl = !string.IsNullOrEmpty(localPreviewDataUrl) ? localPreviewDataUrl : newGear.PhotoDataUrl;
+            }
+            @if (!string.IsNullOrEmpty(previewUrl))
+            {
+                <img class="photo-preview" src="@previewUrl" alt="プレビュー" />
+            }
+        </label>
+
+    </div>
+
+    <div class="form-row">
+        <button type="submit" class="btn btn-primary" disabled="@isUploadingPhoto">
+            @(IsEditMode ? "更新する" : "ギアを登録")
+        </button>
+
+        @if (IsEditMode)
+        {
+            <button type="button" class="btn btn-small" @onclick="CancelEdit">キャンセルして一覧に戻る</button>
+            <button type="button" class="btn btn-small btn-danger" @onclick="DeleteGearPermanently">このギアを完全に削除する</button>
+        }
+    </div>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p class="error-message">@errorMessage</p>
+}
+
+@if (!string.IsNullOrEmpty(DataService.LastErrorMessage))
+{
+    <p class="error-message">@DataService.LastErrorMessage</p>
+}
+
+@code {
+    [Parameter]
+    public Guid? GearId { get; set; }
+
+    private bool IsEditMode => GearId.HasValue;
+
+    private GearItem newGear = new();
+    private string errorMessage = string.Empty;
+
+    private bool isUploadingPhoto;
+    private string localPreviewDataUrl = string.Empty;
+    private string? previousPhotoUrl;
+
+    protected override void OnParametersSet()
+    {
+        if (IsEditMode)
+        {
+            var existing = DataService.FindGearById(GearId!.Value);
+            if (existing == null)
+            {
+                errorMessage = "対象のギアが見つかりませんでした。";
+                newGear = new GearItem();
+                return;
+            }
+
+            newGear = new GearItem
+            {
+                Id = existing.Id,
+                Category = existing.Category,
+                Name = existing.Name,
+                WeightGram = existing.WeightGram,
+                IsPacked = existing.IsPacked,
+                Memo = existing.Memo,
+                PhotoDataUrl = existing.PhotoDataUrl,
+                Url = existing.Url,
+                Maker = existing.Maker,
+                PurchaseDate = existing.PurchaseDate,
+                PurchaseStore = existing.PurchaseStore,
+                PurchasePrice = existing.PurchasePrice,
+                SortOrder = existing.SortOrder,
+                IsDeleted = existing.IsDeleted
+            };
+        }
+        else
+        {
+            newGear = new GearItem();
+        }
+
+        localPreviewDataUrl = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private void SubmitGear()
+    {
+        if (IsEditMode)
+        {
+            if (DataService.UpdateGear(GearId!.Value, newGear, out errorMessage))
+            {
+                Navigation.NavigateTo("/");
+            }
+        }
+        else
+        {
+            if (DataService.AddGear(newGear, out errorMessage))
+            {
+                newGear = new GearItem();
+                errorMessage = string.Empty;
+                Navigation.NavigateTo("/");
+            }
+        }
+    }
+
+    private void CancelEdit()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task DeleteGearPermanently()
+    {
+        if (!IsEditMode)
+        {
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"「{newGear.Name}」を完全に削除します。よろしいですか？（この操作は元に戻せません）");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var existing = DataService.FindGearById(GearId!.Value);
+        if (existing != null)
+        {
+            var photoToDelete = existing.PhotoDataUrl;
+            DataService.RemoveGear(existing);
+            _ = DataService.DeletePhotoAsync(photoToDelete);
+        }
+
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task OnPhotoSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null)
+        {
+            return;
+        }
+
+        var resizedFile = await file.RequestImageFileAsync(file.ContentType, 800, 800);
+
+        const long maxFileSize = 2 * 1024 * 1024;
+        using var stream = resizedFile.OpenReadStream(maxFileSize);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        var bytes = ms.ToArray();
+
+        // アップロード完了までの間、選んだ写真をその場でプレビュー表示する
+        var base64 = Convert.ToBase64String(bytes);
+        localPreviewDataUrl = $"data:{resizedFile.ContentType};base64,{base64}";
+
+        // 差し替え前の写真を記憶しておき、アップロード成功後に古い写真を削除する
+        previousPhotoUrl = newGear.PhotoDataUrl;
+
+        isUploadingPhoto = true;
+        StateHasChanged();
+
+        var uploadedUrl = await DataService.UploadPhotoAsync(bytes, resizedFile.Name, resizedFile.ContentType);
+
+        if (!string.IsNullOrEmpty(uploadedUrl))
+        {
+            newGear.PhotoDataUrl = uploadedUrl;
+            localPreviewDataUrl = string.Empty;
+
+            if (!string.IsNullOrEmpty(previousPhotoUrl) && previousPhotoUrl != uploadedUrl)
+            {
+                _ = DataService.DeletePhotoAsync(previousPhotoUrl);
+            }
+        }
+        // 失敗時はlocalPreviewDataUrlのプレビューのまま残し、newGear.PhotoDataUrlは更新しない
+        // （DataService.LastErrorMessageにエラー内容が表示される）
+
+        isUploadingPhoto = false;
+        StateHasChanged();
+    }
+}

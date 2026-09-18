@@ -1,0 +1,54 @@
+﻿@inherits LayoutComponentBase
+@using CampGearApp.Services
+@inject GearDataService DataService
+@implements IDisposable
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <article class="content px-4">
+
+            @if (DataService.IsLoading)
+            {
+                <div class="sync-banner sync-loading">
+                    データを読み込み中です…
+                </div>
+            }
+            else
+            {
+                @if (DataService.IsSaving)
+                {
+                    <div class="sync-banner sync-saving">
+                        保存中…
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(DataService.LastErrorMessage))
+                {
+                    <div class="sync-banner sync-error">
+                        @DataService.LastErrorMessage
+                    </div>
+                }
+
+                @Body
+            }
+
+        </article>
+    </main>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        // GearDataService側でデータが変わるたびに、画面を再描画する
+        DataService.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        DataService.OnChange -= StateHasChanged;
+    }
+}

@@ -1,0 +1,150 @@
+﻿@page "/"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@inject GearDataService DataService
+@inject NavigationManager Navigation
+
+<PageTitle>ギア一覧</PageTitle>
+
+<h1>ギア一覧</h1>
+
+<div class="form-row">
+    <label>
+        カテゴリで絞り込み：
+        <select @bind="filterCategory">
+            <option value="">すべて表示</option>
+            @foreach (var cat in DataService.Categories.OrderBy(c => c.SortOrder))
+            {
+                <option value="@cat.Name">@cat.Name</option>
+            }
+        </select>
+    </label>
+</div>
+
+@if (!string.IsNullOrEmpty(filterCategory))
+{
+    <p class="hint">▲▼ボタンで、このカテゴリ内での並び順を変更できます。</p>
+}
+else
+{
+    <p class="hint">並び替えを行うには、カテゴリを1つ選択してください（すべて表示の間は並び替えできません）。</p>
+}
+
+@{
+    var filteredList = FilteredGears.ToList();
+    var activeList = filteredList.Where(g => !g.IsDeleted).ToList();
+}
+
+@if (filteredList.Count > 0)
+{
+    <div class="table-scroll">
+        <table class="gear-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>パック</th>
+                    <th>写真</th>
+                    <th>ギア名</th>
+                    <th>重量(g)</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var gear in filteredList)
+                {
+                    var canMove = !string.IsNullOrEmpty(filterCategory) && !gear.IsDeleted;
+                    var activeIndex = activeList.IndexOf(gear);
+                    var isFirst = activeIndex == 0;
+                    var isLast = activeIndex == activeList.Count - 1;
+
+                    <tr class="@(gear.IsDeleted ? "row-deleted" : "")">
+                        <td>
+                            @if (canMove)
+                            {
+                                <span class="sort-buttons">
+                                    <button class="btn btn-small" disabled="@isFirst" @onclick="() => MoveUp(gear)">▲</button>
+                                    <button class="btn btn-small" disabled="@isLast" @onclick="() => MoveDown(gear)">▼</button>
+                                </span>
+                            }
+                        </td>
+                        <td>
+                            <input type="checkbox" @bind="gear.IsPacked" @bind:after="DataService.SaveGearQuickChange" />
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(gear.PhotoDataUrl))
+                            {
+                                <img class="photo-thumb" src="@gear.PhotoDataUrl" alt="@gear.Name" />
+                            }
+                        </td>
+                        <td>@gear.Name</td>
+                        <td>@gear.WeightGram</td>
+                        <td>
+                            <button class="btn btn-small btn-primary" @onclick="() => EditGear(gear)">編集</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <p class="hint">登録されているギアがありません。「ギア登録」画面から追加してください。</p>
+}
+
+<div class="weight-summary-fixed">
+    <div class="weight-summary-item">
+        <span class="label">パッキング対象</span>
+        <span class="value">
+            @DataService.TotalPackedWeightGram g
+            (@DataService.TotalPackedWeightKg.ToString("0.00") kg)
+        </span>
+    </div>
+    <div class="weight-summary-item">
+        <span class="label">全体合計</span>
+        <span class="value">
+            @DataService.TotalAllWeightGram g
+            (@DataService.TotalAllWeightKg.ToString("0.00") kg)
+        </span>
+    </div>
+</div>
+
+@code {
+    private string filterCategory = string.Empty;
+
+    private IEnumerable<GearItem> FilteredGears
+    {
+        get
+        {
+            var query = string.IsNullOrEmpty(filterCategory)
+                ? DataService.Gears.AsEnumerable()
+                : DataService.Gears.Where(g => g.Category == filterCategory);
+
+            return query
+                .OrderBy(g => GetCategorySortOrder(g.Category))
+                .ThenBy(g => g.IsDeleted)
+                .ThenBy(g => g.SortOrder);
+        }
+    }
+
+    private int GetCategorySortOrder(string categoryName)
+    {
+        var cat = DataService.Categories.FirstOrDefault(c => c.Name == categoryName);
+        return cat?.SortOrder ?? int.MaxValue;
+    }
+
+    private void EditGear(GearItem gear)
+    {
+        Navigation.NavigateTo($"/gear/edit/{gear.Id}");
+    }
+
+    private void MoveUp(GearItem gear)
+    {
+        DataService.MoveGear(gear, filterCategory, -1);
+    }
+
+    private void MoveDown(GearItem gear)
+    {
+        DataService.MoveGear(gear, filterCategory, 1);
+    }
+}

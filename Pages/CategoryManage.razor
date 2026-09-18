@@ -1,0 +1,88 @@
+@page "/categories"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@inject GearDataService DataService
+
+<PageTitle>カテゴリ管理</PageTitle>
+
+<h1>カテゴリマスタの登録</h1>
+
+<div class="form-row">
+    <input @bind="newCategoryName"
+           @bind:event="oninput"
+           @onkeyup="OnCategoryKeyUp"
+           placeholder="新しいカテゴリ名（例：テント）" />
+    <button class="btn btn-primary" @onclick="AddCategory">追加</button>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p class="error-message">@errorMessage</p>
+}
+
+@{
+    var orderedCategories = DataService.Categories.OrderBy(c => c.SortOrder).ToList();
+}
+
+@if (orderedCategories.Count > 0)
+{
+    <p class="hint">▲▼ボタンで並び順を変更できます。</p>
+
+    <ul class="category-list">
+        @for (int i = 0; i < orderedCategories.Count; i++)
+        {
+            var cat = orderedCategories[i];
+            var isFirst = i == 0;
+            var isLast = i == orderedCategories.Count - 1;
+
+            <li>
+                <span class="sort-buttons">
+                    <button class="btn btn-small" disabled="@isFirst" @onclick="() => MoveUp(cat)">▲</button>
+                    <button class="btn btn-small" disabled="@isLast" @onclick="() => MoveDown(cat)">▼</button>
+                </span>
+                <span class="category-name">@cat.Name</span>
+                <button class="btn btn-small btn-danger" @onclick="() => RemoveCategory(cat)">削除</button>
+            </li>
+        }
+    </ul>
+}
+else
+{
+    <p class="hint">まだカテゴリが登録されていません。</p>
+}
+
+@code {
+    private string newCategoryName = string.Empty;
+    private string errorMessage = string.Empty;
+
+    private void AddCategory()
+    {
+        if (DataService.AddCategory(newCategoryName, out errorMessage))
+        {
+            newCategoryName = string.Empty;
+        }
+    }
+
+    private void OnCategoryKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            AddCategory();
+        }
+    }
+
+    private void RemoveCategory(CategoryItem cat)
+    {
+        DataService.RemoveCategory(cat);
+    }
+
+    private void MoveUp(CategoryItem cat)
+    {
+        DataService.MoveCategory(cat, -1);
+    }
+
+    private void MoveDown(CategoryItem cat)
+    {
+        DataService.MoveCategory(cat, 1);
+    }
+}
