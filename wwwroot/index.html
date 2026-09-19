@@ -24,6 +24,20 @@
     <link href="CampGearApp.styles.css" rel="stylesheet" />
 </head>
 
+<script>
+    // 404.htmlから転送されてきた場合、元のURLを復元する
+    (function (l) {
+        if (l.search[1] === '/') {
+            var decoded = l.search.slice(1).split('&').map(function (s) {
+                return s.replace(/~and~/g, '&');
+            }).join('?');
+            window.history.replaceState(null, null,
+                l.pathname.slice(0, -1) + decoded + l.hash
+            );
+        }
+    }(window.location));
+</script>
+
 <body>
     <div id="app">
         <svg class="loading-progress">
