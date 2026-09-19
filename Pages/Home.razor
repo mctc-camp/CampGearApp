@@ -55,7 +55,7 @@ else
                 {
                     var canDrag = !string.IsNullOrEmpty(filterCategory) && !gear.IsDeleted;
 
-                    <tr data-id="@gear.Id" class="@(gear.IsDeleted ? "row-deleted" : "")">
+                    <tr @key="gear.Id" data-id="@gear.Id" class="@(gear.IsDeleted ? "row-deleted" : "")">
                         <td>
                             <input type="checkbox" @bind="gear.IsPacked" @bind:after="DataService.SaveGearQuickChange" />
                         </td>

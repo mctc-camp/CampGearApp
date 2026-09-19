@@ -10,10 +10,7 @@
 <h1>カテゴリマスタの登録</h1>
 
 <div class="form-row">
-    <input @bind="newCategoryName"
-           @bind:event="oninput"
-           @onkeyup="OnCategoryKeyUp"
-           placeholder="新しいカテゴリ名（例：テント）" />
+    <input @bind="newCategoryName" @bind:event="oninput" @onkeyup="OnCategoryKeyUp" placeholder="新しいカテゴリ名（例：テント）" />
     <button class="btn btn-primary" @onclick="AddCategory">追加</button>
 </div>
 
@@ -33,7 +30,7 @@
     <ul class="sortable-list" id="category-sortable-list">
         @foreach (var cat in orderedCategories)
         {
-            <li data-id="@cat.Id">
+            <li @key="cat.Id" data-id="@cat.Id">
                 <span class="category-name">@cat.Name</span>
                 <button class="btn btn-small btn-danger" @onclick="() => RemoveCategory(cat)">削除</button>
                 <span class="drag-handle" title="ドラッグして並び替え">☰</span>
@@ -50,32 +47,32 @@ else
     private string newCategoryName = string.Empty;
     private string errorMessage = string.Empty;
 
-private DotNetObjectReference<CategoryManage>? dotNetRef;
-private bool jsInitialized;
-private int lastCategoryCount = -1;
+    private DotNetObjectReference<CategoryManage>? dotNetRef;
+    private bool jsInitialized;
+    private int lastCategoryCount = -1;
 
-protected override async Task OnAfterRenderAsync(bool firstRender)
-{
-    var currentCount = DataService.Categories.Count;
-
-    if (currentCount == 0)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        return;
+        var currentCount = DataService.Categories.Count;
+
+        if (currentCount == 0)
+        {
+            return;
+        }
+
+        // カテゴリの「件数」が変わった時（新規追加・削除された時）だけ再初期化する。
+        // 並び替え操作そのものでは、件数は変わらないため再初期化されない。
+        if (currentCount == lastCategoryCount)
+        {
+            return;
+        }
+
+        lastCategoryCount = currentCount;
+
+        dotNetRef ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("sortableInterop.init", "category-sortable-list", dotNetRef);
+        jsInitialized = true;
     }
-
-    // カテゴリの「件数」が変わった時（新規追加・削除された時）だけ再初期化する。
-    // 並び替え操作そのものでは、件数は変わらないため再初期化されない。
-    if (currentCount == lastCategoryCount)
-    {
-        return;
-    }
-
-    lastCategoryCount = currentCount;
-
-    dotNetRef ??= DotNetObjectReference.Create(this);
-    await JS.InvokeVoidAsync("sortableInterop.init", "category-sortable-list", dotNetRef);
-    jsInitialized = true;
-}
 
     private void AddCategory()
     {
