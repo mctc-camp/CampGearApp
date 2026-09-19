@@ -10,7 +10,10 @@
 <h1>カテゴリマスタの登録</h1>
 
 <div class="form-row">
-    <input @bind="newCategoryName" @bind:event="oninput" @onkeyup="OnCategoryKeyUp" placeholder="新しいカテゴリ名（例：テント）" />
+    <input @bind="newCategoryName"
+           @bind:event="oninput"
+           @onkeyup="OnCategoryKeyUp"
+           placeholder="新しいカテゴリ名（例：テント）" />
     <button class="btn btn-primary" @onclick="AddCategory">追加</button>
 </div>
 
@@ -31,12 +34,30 @@
         @foreach (var cat in orderedCategories)
         {
             <li @key="cat.Id" data-id="@cat.Id">
-                <span class="category-name">@cat.Name</span>
-                <button class="btn btn-small btn-danger" @onclick="() => RemoveCategory(cat)">削除</button>
-                <span class="drag-handle" title="ドラッグして並び替え">☰</span>
+                @if (editingCategoryId == cat.Id)
+                {
+                    <input class="category-edit-input"
+                           @bind="editingName"
+                           @bind:event="oninput"
+                           @onkeyup="e => OnEditKeyUp(e, cat)" />
+                    <button class="btn btn-small btn-primary" @onclick="() => SaveEdit(cat)">保存</button>
+                    <button class="btn btn-small" @onclick="CancelEdit">キャンセル</button>
+                }
+                else
+                {
+                    <span class="category-name">@cat.Name</span>
+                    <button class="btn btn-small btn-primary" @onclick="() => StartEdit(cat)">編集</button>
+                    <button class="btn btn-small btn-danger" @onclick="() => RemoveCategory(cat)">削除</button>
+                    <span class="drag-handle" title="ドラッグして並び替え">☰</span>
+                }
             </li>
         }
     </ul>
+
+    @if (!string.IsNullOrEmpty(editErrorMessage))
+    {
+        <p class="error-message">@editErrorMessage</p>
+    }
 }
 else
 {
@@ -46,6 +67,10 @@ else
 @code {
     private string newCategoryName = string.Empty;
     private string errorMessage = string.Empty;
+
+    private Guid? editingCategoryId;
+    private string editingName = string.Empty;
+    private string editErrorMessage = string.Empty;
 
     private DotNetObjectReference<CategoryManage>? dotNetRef;
     private bool jsInitialized;
@@ -60,8 +85,6 @@ else
             return;
         }
 
-        // カテゴリの「件数」が変わった時（新規追加・削除された時）だけ再初期化する。
-        // 並び替え操作そのものでは、件数は変わらないため再初期化されない。
         if (currentCount == lastCategoryCount)
         {
             return;
@@ -93,6 +116,41 @@ else
     private void RemoveCategory(CategoryItem cat)
     {
         DataService.RemoveCategory(cat);
+    }
+
+    private void StartEdit(CategoryItem cat)
+    {
+        editingCategoryId = cat.Id;
+        editingName = cat.Name;
+        editErrorMessage = string.Empty;
+    }
+
+    private void CancelEdit()
+    {
+        editingCategoryId = null;
+        editingName = string.Empty;
+        editErrorMessage = string.Empty;
+    }
+
+    private void SaveEdit(CategoryItem cat)
+    {
+        if (DataService.UpdateCategoryName(cat, editingName, out editErrorMessage))
+        {
+            editingCategoryId = null;
+            editingName = string.Empty;
+        }
+    }
+
+    private void OnEditKeyUp(KeyboardEventArgs e, CategoryItem cat)
+    {
+        if (e.Key == "Enter")
+        {
+            SaveEdit(cat);
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelEdit();
+        }
     }
 
     [JSInvokable]

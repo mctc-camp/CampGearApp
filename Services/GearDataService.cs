@@ -245,6 +245,42 @@ public class GearDataService
         NotifyChangeAndSave();
     }
 
+    // カテゴリ名の変更（ギア・セット側で使われているカテゴリ名も連動して更新する）
+    public bool UpdateCategoryName(CategoryItem category, string newName, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+        newName = newName.Trim();
+
+        if (string.IsNullOrEmpty(newName))
+        {
+            errorMessage = "カテゴリ名を入力してください。";
+            return false;
+        }
+
+        if (Categories.Any(c => c.Id != category.Id && c.Name == newName))
+        {
+            errorMessage = "同じ名前のカテゴリが既に存在します。";
+            return false;
+        }
+
+        var oldName = category.Name;
+        if (oldName == newName)
+        {
+            return true;
+        }
+
+        category.Name = newName;
+
+        // このカテゴリ名を使っているギアも、あわせて新しい名前に更新する
+        foreach (var gear in Gears.Where(g => g.Category == oldName))
+        {
+            gear.Category = newName;
+        }
+
+        NotifyChangeAndSave();
+        return true;
+    }
+
     // カテゴリを、ドラッグ後の並び順(idの一覧)通りに更新する
     public void ReorderCategoriesByIds(List<Guid> orderedIds)
     {
