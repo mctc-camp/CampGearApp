@@ -2,9 +2,7 @@ const CACHE_VERSION = 'v1';
 const CACHE_NAME = `campgear-cache-${CACHE_VERSION}`;
 
 self.addEventListener('install', event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(() => self.skipWaiting())
-    );
+    self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
@@ -26,9 +24,7 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Googleスプレッドシート(Apps Script)への通信、および写真表示(Googleドライブ)への通信は
-    // 一切横取りしない（event.respondWithを呼ばない）。
-    // ブラウザ本来の処理に完全に任せることで、302リダイレクトが正しく機能する。
+    // Google関連の通信には一切介入しない（リダイレクトを妨げないため）
     if (
         url.hostname.includes('script.google.com') ||
         url.hostname.includes('script.googleusercontent.com') ||
@@ -38,10 +34,12 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // アプリ本体のファイル（HTML/CSS/JS/画像）は、キャッシュ優先＋裏側で更新する
+    // それ以外（アプリ本体のファイル）は、
+    // 「まずネットワークから取得。失敗した場合のみキャッシュを使う」というシンプルな方式にする。
+    // これによりファイルの二重取得や適用順序の問題を避ける。
     event.respondWith(
-        caches.match(event.request).then(cachedResponse => {
-            const fetchPromise = fetch(event.request).then(networkResponse => {
+        fetch(event.request)
+            .then(networkResponse => {
                 if (networkResponse.ok) {
                     const responseClone = networkResponse.clone();
                     caches.open(CACHE_NAME).then(cache => {
@@ -49,9 +47,7 @@ self.addEventListener('fetch', event => {
                     });
                 }
                 return networkResponse;
-            }).catch(() => cachedResponse);
-
-            return cachedResponse || fetchPromise;
-        })
+            })
+            .catch(() => caches.match(event.request))
     );
 });
