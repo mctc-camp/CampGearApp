@@ -3,6 +3,8 @@
 @using CampGearApp.Services
 @inject GearDataService DataService
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>ギア一覧</PageTitle>
 
@@ -23,7 +25,7 @@
 
 @if (!string.IsNullOrEmpty(filterCategory))
 {
-    <p class="hint">▲▼ボタンで、このカテゴリ内での並び順を変更できます。</p>
+    <p class="hint">行の右端「☰」を指で押さえたまま上下に動かすと、このカテゴリ内での並び順を変更できます。</p>
 }
 else
 {
@@ -32,7 +34,6 @@ else
 
 @{
     var filteredList = FilteredGears.ToList();
-    var activeList = filteredList.Where(g => !g.IsDeleted).ToList();
 }
 
 @if (filteredList.Count > 0)
@@ -41,32 +42,20 @@ else
         <table class="gear-table">
             <thead>
                 <tr>
-                    <th></th>
                     <th>パック</th>
                     <th>写真</th>
                     <th>ギア名</th>
                     <th>重量(g)</th>
                     <th></th>
+                    <th></th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="gear-sortable-list">
                 @foreach (var gear in filteredList)
                 {
-                    var canMove = !string.IsNullOrEmpty(filterCategory) && !gear.IsDeleted;
-                    var activeIndex = activeList.IndexOf(gear);
-                    var isFirst = activeIndex == 0;
-                    var isLast = activeIndex == activeList.Count - 1;
+                    var canDrag = !string.IsNullOrEmpty(filterCategory) && !gear.IsDeleted;
 
-                    <tr class="@(gear.IsDeleted ? "row-deleted" : "")">
-                        <td>
-                            @if (canMove)
-                            {
-                                <span class="sort-buttons">
-                                    <button class="btn btn-small" disabled="@isFirst" @onclick="() => MoveUp(gear)">▲</button>
-                                    <button class="btn btn-small" disabled="@isLast" @onclick="() => MoveDown(gear)">▼</button>
-                                </span>
-                            }
-                        </td>
+                    <tr data-id="@gear.Id" class="@(gear.IsDeleted ? "row-deleted" : "")">
                         <td>
                             <input type="checkbox" @bind="gear.IsPacked" @bind:after="DataService.SaveGearQuickChange" />
                         </td>
@@ -80,6 +69,12 @@ else
                         <td>@gear.WeightGram</td>
                         <td>
                             <button class="btn btn-small btn-primary" @onclick="() => EditGear(gear)">編集</button>
+                        </td>
+                        <td>
+                            @if (canDrag)
+                            {
+                                <span class="drag-handle" title="ドラッグして並び替え">☰</span>
+                            }
                         </td>
                     </tr>
                 }
@@ -112,6 +107,9 @@ else
 @code {
     private string filterCategory = string.Empty;
 
+    private DotNetObjectReference<Home>? dotNetRef;
+    private bool jsInitialized;
+
     private IEnumerable<GearItem> FilteredGears
     {
         get
@@ -133,18 +131,50 @@ else
         return cat?.SortOrder ?? int.MaxValue;
     }
 
-private void EditGear(GearItem gear)
-{
-    Navigation.NavigateTo($"gear/edit/{gear.Id}");
-}
-
-    private void MoveUp(GearItem gear)
+    private void EditGear(GearItem gear)
     {
-        DataService.MoveGear(gear, filterCategory, -1);
+        Navigation.NavigateTo($"gear/edit/{gear.Id}");
     }
 
-    private void MoveDown(GearItem gear)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        DataService.MoveGear(gear, filterCategory, 1);
+        if (string.IsNullOrEmpty(filterCategory))
+        {
+            if (jsInitialized)
+            {
+                await JS.InvokeVoidAsync("sortableInterop.destroy", "gear-sortable-list");
+                jsInitialized = false;
+            }
+            return;
+        }
+
+        dotNetRef ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("sortableInterop.init", "gear-sortable-list", dotNetRef);
+        jsInitialized = true;
+    }
+
+    [JSInvokable]
+    public void OnReordered(List<string> orderedIdStrings)
+    {
+        var orderedIds = orderedIdStrings.Select(Guid.Parse).ToList();
+        DataService.ReorderGearsByIds(filterCategory, orderedIds);
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (jsInitialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("sortableInterop.destroy", "gear-sortable-list");
+            }
+            catch
+            {
+                // 画面遷移のタイミングによっては失敗することがあるが、実害はないため無視する
+            }
+        }
+
+        dotNetRef?.Dispose();
     }
 }

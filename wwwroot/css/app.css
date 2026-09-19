@@ -331,22 +331,6 @@ row-deleted
     flex: 1;
 }
 
-.sort-buttons {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.sort-buttons .btn {
-    line-height: 1;
-    padding: 0.15rem 0.4rem;
-}
-
-.sort-buttons .btn:disabled {
-    opacity: 0.3;
-    cursor: default;
-}
-
 #blazor-error-ui {
     background: lightyellow;
     bottom: 0;
@@ -364,4 +348,46 @@ row-deleted
     position: absolute;
     right: 0.75rem;
     top: 0.5rem;
+}
+
+.sortable-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.sortable-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.5rem;
+    border-bottom: 1px solid #eee;
+    background: #fff;
+}
+
+.sortable-list .category-name {
+    flex: 1;
+}
+
+.drag-handle {
+    font-size: 1.4rem;
+    color: #888;
+    padding: 0.4rem 0.7rem;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sortable-ghost {
+    opacity: 0.4;
+    background: #eef3f8;
+}
+
+.sortable-chosen {
+    background: #eef3f8;
 }

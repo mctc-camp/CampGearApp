@@ -245,23 +245,16 @@ public class GearDataService
         NotifyChangeAndSave();
     }
 
-    // カテゴリを1つ上/下に移動する（direction: -1で上、+1で下）
-    public void MoveCategory(CategoryItem cat, int direction)
+    // カテゴリを、ドラッグ後の並び順(idの一覧)通りに更新する
+    public void ReorderCategoriesByIds(List<Guid> orderedIds)
     {
-        var ordered = Categories.OrderBy(c => c.SortOrder).ToList();
-        var index = ordered.IndexOf(cat);
-        var newIndex = index + direction;
-
-        if (newIndex < 0 || newIndex >= ordered.Count)
+        for (int i = 0; i < orderedIds.Count; i++)
         {
-            return;
-        }
-
-        (ordered[index], ordered[newIndex]) = (ordered[newIndex], ordered[index]);
-
-        for (int i = 0; i < ordered.Count; i++)
-        {
-            ordered[i].SortOrder = i;
+            var cat = Categories.FirstOrDefault(c => c.Id == orderedIds[i]);
+            if (cat != null)
+            {
+                cat.SortOrder = i;
+            }
         }
 
         NotifyChangeAndSave();
@@ -358,27 +351,16 @@ public class GearDataService
         NotifyChangeAndSave();
     }
 
-    // 同一カテゴリ内でギアを1つ上/下に移動する（direction: -1で上、+1で下）
-    public void MoveGear(GearItem gear, string category, int direction)
+    // 指定カテゴリ内のギアを、ドラッグ後の並び順(idの一覧)通りに更新する
+    public void ReorderGearsByIds(string category, List<Guid> orderedIds)
     {
-        var ordered = Gears
-            .Where(g => g.Category == category && !g.IsDeleted)
-            .OrderBy(g => g.SortOrder)
-            .ToList();
-
-        var index = ordered.IndexOf(gear);
-        var newIndex = index + direction;
-
-        if (newIndex < 0 || newIndex >= ordered.Count)
+        for (int i = 0; i < orderedIds.Count; i++)
         {
-            return;
-        }
-
-        (ordered[index], ordered[newIndex]) = (ordered[newIndex], ordered[index]);
-
-        for (int i = 0; i < ordered.Count; i++)
-        {
-            ordered[i].SortOrder = i;
+            var gear = Gears.FirstOrDefault(g => g.Id == orderedIds[i] && g.Category == category);
+            if (gear != null)
+            {
+                gear.SortOrder = i;
+            }
         }
 
         NotifyChangeAndSave();

@@ -2,6 +2,8 @@
 @using CampGearApp.Models
 @using CampGearApp.Services
 @inject GearDataService DataService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>カテゴリ管理</PageTitle>
 
@@ -26,22 +28,15 @@
 
 @if (orderedCategories.Count > 0)
 {
-    <p class="hint">▲▼ボタンで並び順を変更できます。</p>
+    <p class="hint">右端の「☰」を指で押さえたまま上下に動かすと、並び順を変更できます。</p>
 
-    <ul class="category-list">
-        @for (int i = 0; i < orderedCategories.Count; i++)
+    <ul class="sortable-list" id="category-sortable-list">
+        @foreach (var cat in orderedCategories)
         {
-            var cat = orderedCategories[i];
-            var isFirst = i == 0;
-            var isLast = i == orderedCategories.Count - 1;
-
-            <li>
-                <span class="sort-buttons">
-                    <button class="btn btn-small" disabled="@isFirst" @onclick="() => MoveUp(cat)">▲</button>
-                    <button class="btn btn-small" disabled="@isLast" @onclick="() => MoveDown(cat)">▼</button>
-                </span>
+            <li data-id="@cat.Id">
                 <span class="category-name">@cat.Name</span>
                 <button class="btn btn-small btn-danger" @onclick="() => RemoveCategory(cat)">削除</button>
+                <span class="drag-handle" title="ドラッグして並び替え">☰</span>
             </li>
         }
     </ul>
@@ -54,6 +49,21 @@ else
 @code {
     private string newCategoryName = string.Empty;
     private string errorMessage = string.Empty;
+
+    private DotNetObjectReference<CategoryManage>? dotNetRef;
+    private bool jsInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (DataService.Categories.Count == 0)
+        {
+            return;
+        }
+
+        dotNetRef ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("sortableInterop.init", "category-sortable-list", dotNetRef);
+        jsInitialized = true;
+    }
 
     private void AddCategory()
     {
@@ -76,13 +86,28 @@ else
         DataService.RemoveCategory(cat);
     }
 
-    private void MoveUp(CategoryItem cat)
+    [JSInvokable]
+    public void OnReordered(List<string> orderedIdStrings)
     {
-        DataService.MoveCategory(cat, -1);
+        var orderedIds = orderedIdStrings.Select(Guid.Parse).ToList();
+        DataService.ReorderCategoriesByIds(orderedIds);
+        StateHasChanged();
     }
 
-    private void MoveDown(CategoryItem cat)
+    public async ValueTask DisposeAsync()
     {
-        DataService.MoveCategory(cat, 1);
+        if (jsInitialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("sortableInterop.destroy", "category-sortable-list");
+            }
+            catch
+            {
+                // 画面遷移のタイミングによっては失敗することがあるが、実害はないため無視する
+            }
+        }
+
+        dotNetRef?.Dispose();
     }
 }
