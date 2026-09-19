@@ -109,6 +109,8 @@ else
 
     private DotNetObjectReference<Home>? dotNetRef;
     private bool jsInitialized;
+    private string lastFilterCategory = string.Empty;
+    private int lastGearCount = -1;
 
     private IEnumerable<GearItem> FilteredGears
     {
@@ -144,9 +146,21 @@ else
             {
                 await JS.InvokeVoidAsync("sortableInterop.destroy", "gear-sortable-list");
                 jsInitialized = false;
+                lastFilterCategory = string.Empty;
+                lastGearCount = -1;
             }
             return;
         }
+
+        var currentCount = FilteredGears.Count();
+
+        if (filterCategory == lastFilterCategory && currentCount == lastGearCount && jsInitialized)
+        {
+            return;
+        }
+
+        lastFilterCategory = filterCategory;
+        lastGearCount = currentCount;
 
         dotNetRef ??= DotNetObjectReference.Create(this);
         await JS.InvokeVoidAsync("sortableInterop.init", "gear-sortable-list", dotNetRef);

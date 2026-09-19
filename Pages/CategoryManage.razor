@@ -50,20 +50,32 @@ else
     private string newCategoryName = string.Empty;
     private string errorMessage = string.Empty;
 
-    private DotNetObjectReference<CategoryManage>? dotNetRef;
-    private bool jsInitialized;
+private DotNetObjectReference<CategoryManage>? dotNetRef;
+private bool jsInitialized;
+private int lastCategoryCount = -1;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+protected override async Task OnAfterRenderAsync(bool firstRender)
+{
+    var currentCount = DataService.Categories.Count;
+
+    if (currentCount == 0)
     {
-        if (DataService.Categories.Count == 0)
-        {
-            return;
-        }
-
-        dotNetRef ??= DotNetObjectReference.Create(this);
-        await JS.InvokeVoidAsync("sortableInterop.init", "category-sortable-list", dotNetRef);
-        jsInitialized = true;
+        return;
     }
+
+    // カテゴリの「件数」が変わった時（新規追加・削除された時）だけ再初期化する。
+    // 並び替え操作そのものでは、件数は変わらないため再初期化されない。
+    if (currentCount == lastCategoryCount)
+    {
+        return;
+    }
+
+    lastCategoryCount = currentCount;
+
+    dotNetRef ??= DotNetObjectReference.Create(this);
+    await JS.InvokeVoidAsync("sortableInterop.init", "category-sortable-list", dotNetRef);
+    jsInitialized = true;
+}
 
     private void AddCategory()
     {
