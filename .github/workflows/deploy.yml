@@ -30,6 +30,9 @@ jobs:
       - name: Change base-tag in index.html
         run: sed -i 's/<base href="\/" \/>/<base href="\/CampGearApp\/" \/>/g' release/wwwroot/index.html
 
+      - name: Bump service worker cache version
+        run: sed -i "s/const CACHE_VERSION = 'v1';/const CACHE_VERSION = '${{ github.run_number }}';/g" release/wwwroot/service-worker.js
+
       - name: Copy index.html to 404.html
         run: cp release/wwwroot/index.html release/wwwroot/404.html
 

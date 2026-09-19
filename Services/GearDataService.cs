@@ -39,40 +39,55 @@ public class GearDataService
         LastErrorMessage = string.Empty;
         NotifyChange();
 
-        try
+        const int maxRetryCount = 3;
+
+        for (int attempt = 1; attempt <= maxRetryCount; attempt++)
         {
-            var response = await _httpClient.GetAsync(_appsScriptUrl);
-            response.EnsureSuccessStatusCode();
-
-            var json = await response.Content.ReadAsStringAsync();
-
-            if (string.IsNullOrWhiteSpace(json) || json.Trim() == "{}" || json.Trim() == "[]")
+            try
             {
-                Categories = new();
-                Gears = new();
-                Sets = new();
-                Checklists = new();
-            }
-            else
-            {
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                var snapshot = JsonSerializer.Deserialize<AppDataSnapshot>(json, options);
+                var response = await _httpClient.GetAsync(_appsScriptUrl);
+                response.EnsureSuccessStatusCode();
 
-                Categories = snapshot?.Categories ?? new();
-                Gears = snapshot?.Gears ?? new();
-                Sets = snapshot?.Sets ?? new();
-                Checklists = snapshot?.Checklists ?? new();
+                var json = await response.Content.ReadAsStringAsync();
+
+                if (string.IsNullOrWhiteSpace(json) || json.Trim() == "{}" || json.Trim() == "[]")
+                {
+                    Categories = new();
+                    Gears = new();
+                    Sets = new();
+                    Checklists = new();
+                }
+                else
+                {
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    var snapshot = JsonSerializer.Deserialize<AppDataSnapshot>(json, options);
+
+                    Categories = snapshot?.Categories ?? new();
+                    Gears = snapshot?.Gears ?? new();
+                    Sets = snapshot?.Sets ?? new();
+                    Checklists = snapshot?.Checklists ?? new();
+                }
+
+                // 成功したのでリトライループを抜ける
+                LastErrorMessage = string.Empty;
+                break;
+            }
+            catch (Exception ex)
+            {
+                if (attempt == maxRetryCount)
+                {
+                    LastErrorMessage = $"データの読み込みに失敗しました（{maxRetryCount}回試行）：{ex.Message}";
+                }
+                else
+                {
+                    // 少し待ってから再試行する
+                    await Task.Delay(1000 * attempt);
+                }
             }
         }
-        catch (Exception ex)
-        {
-            LastErrorMessage = $"データの読み込みに失敗しました：{ex.Message}";
-        }
-        finally
-        {
-            IsLoading = false;
-            NotifyChange();
-        }
+
+        IsLoading = false;
+        NotifyChange();
     }
 
     // ---- スプレッドシートへの保存 ----
@@ -230,27 +245,27 @@ public class GearDataService
         NotifyChangeAndSave();
     }
 
-// カテゴリを1つ上/下に移動する（direction: -1で上、+1で下）
-public void MoveCategory(CategoryItem cat, int direction)
-{
-    var ordered = Categories.OrderBy(c => c.SortOrder).ToList();
-    var index = ordered.IndexOf(cat);
-    var newIndex = index + direction;
-
-    if (newIndex < 0 || newIndex >= ordered.Count)
+    // カテゴリを1つ上/下に移動する（direction: -1で上、+1で下）
+    public void MoveCategory(CategoryItem cat, int direction)
     {
-        return;
+        var ordered = Categories.OrderBy(c => c.SortOrder).ToList();
+        var index = ordered.IndexOf(cat);
+        var newIndex = index + direction;
+
+        if (newIndex < 0 || newIndex >= ordered.Count)
+        {
+            return;
+        }
+
+        (ordered[index], ordered[newIndex]) = (ordered[newIndex], ordered[index]);
+
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            ordered[i].SortOrder = i;
+        }
+
+        NotifyChangeAndSave();
     }
-
-    (ordered[index], ordered[newIndex]) = (ordered[newIndex], ordered[index]);
-
-    for (int i = 0; i < ordered.Count; i++)
-    {
-        ordered[i].SortOrder = i;
-    }
-
-    NotifyChangeAndSave();
-}
 
     // ---- ギア操作 ----
     public bool AddGear(GearItem gear, out string errorMessage)

@@ -192,7 +192,7 @@
         {
             if (DataService.UpdateGear(GearId!.Value, newGear, out errorMessage))
             {
-                Navigation.NavigateTo("/");
+                Navigation.NavigateTo("");
             }
         }
         else
@@ -201,14 +201,14 @@
             {
                 newGear = new GearItem();
                 errorMessage = string.Empty;
-                Navigation.NavigateTo("/");
+                Navigation.NavigateTo("");
             }
         }
     }
 
     private void CancelEdit()
     {
-        Navigation.NavigateTo("/");
+        Navigation.NavigateTo("");
     }
 
     private async Task DeleteGearPermanently()
@@ -232,7 +232,7 @@
             _ = DataService.DeletePhotoAsync(photoToDelete);
         }
 
-        Navigation.NavigateTo("/");
+        Navigation.NavigateTo("");
     }
 
     private async Task OnPhotoSelected(InputFileChangeEventArgs e)

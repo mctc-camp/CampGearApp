@@ -53,12 +53,12 @@ else
 @code {
     private void GoToNew()
     {
-        Navigation.NavigateTo("/checklists/new");
+        Navigation.NavigateTo("checklists/new");
     }
 
     private void OpenChecklist(ChecklistItem checklist)
     {
-        Navigation.NavigateTo($"/checklists/{checklist.Id}");
+        Navigation.NavigateTo($"checklists/{checklist.Id}");
     }
 
     private async Task DeleteChecklist(ChecklistItem checklist)

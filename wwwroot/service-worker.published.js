@@ -1,4 +1,3 @@
-// キャッシュのバージョン。ファイルを更新して再公開する際はこの数字を上げてください
 const CACHE_VERSION = 'v1';
 const CACHE_NAME = `campgear-cache-${CACHE_VERSION}`;
 
@@ -21,25 +20,33 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+    const url = new URL(event.request.url);
+
     if (event.request.method !== 'GET') {
         return;
     }
 
+    // Googleスプレッドシート(Apps Script)へのデータ通信は、絶対にキャッシュしない
+    // 常に最新のデータをサーバーから取りに行く
+    if (url.hostname.includes('script.google.com') || url.hostname.includes('script.googleusercontent.com')) {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
+    // アプリ本体のファイル（HTML/CSS/JS/画像）は、キャッシュ優先＋裏側で更新する
     event.respondWith(
         caches.match(event.request).then(cachedResponse => {
-            if (cachedResponse) {
-                return cachedResponse;
-            }
-
-            return fetch(event.request).then(response => {
-                if (response.ok) {
-                    const responseClone = response.clone();
+            const fetchPromise = fetch(event.request).then(networkResponse => {
+                if (networkResponse.ok) {
+                    const responseClone = networkResponse.clone();
                     caches.open(CACHE_NAME).then(cache => {
                         cache.put(event.request, responseClone);
                     });
                 }
-                return response;
-            }).catch(() => caches.match('./index.html'));
+                return networkResponse;
+            }).catch(() => cachedResponse);
+
+            return cachedResponse || fetchPromise;
         })
     );
 });

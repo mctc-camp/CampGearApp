@@ -133,10 +133,10 @@ else
         return cat?.SortOrder ?? int.MaxValue;
     }
 
-    private void EditGear(GearItem gear)
-    {
-        Navigation.NavigateTo($"/gear/edit/{gear.Id}");
-    }
+private void EditGear(GearItem gear)
+{
+    Navigation.NavigateTo($"gear/edit/{gear.Id}");
+}
 
     private void MoveUp(GearItem gear)
     {
