@@ -26,10 +26,15 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Googleスプレッドシート(Apps Script)へのデータ通信は、絶対にキャッシュしない
-    // 常に最新のデータをサーバーから取りに行く
-    if (url.hostname.includes('script.google.com') || url.hostname.includes('script.googleusercontent.com')) {
-        event.respondWith(fetch(event.request));
+    // Googleスプレッドシート(Apps Script)への通信、および写真表示(Googleドライブ)への通信は
+    // 一切横取りしない（event.respondWithを呼ばない）。
+    // ブラウザ本来の処理に完全に任せることで、302リダイレクトが正しく機能する。
+    if (
+        url.hostname.includes('script.google.com') ||
+        url.hostname.includes('script.googleusercontent.com') ||
+        url.hostname.includes('drive.google.com') ||
+        url.hostname.includes('googleusercontent.com')
+    ) {
         return;
     }
 
