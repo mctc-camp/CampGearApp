@@ -88,7 +88,7 @@
 
         <label class="full-width">
             メモ
-            <textarea @bind="newGear.Memo" rows="2"></textarea>
+            <textarea @bind="newGear.Memo" rows="@GetMemoRows()"></textarea>
         </label>
 
         <label class="full-width">
@@ -279,5 +279,17 @@
 
         isUploadingPhoto = false;
         StateHasChanged();
+    }
+
+    // メモの行数に応じて、textareaの表示行数を決める（最低2行、最大10行まで）
+    private int GetMemoRows()
+    {
+        if (string.IsNullOrEmpty(newGear.Memo))
+        {
+            return 2;
+        }
+
+        var lineCount = newGear.Memo.Split('\n').Length;
+        return Math.Clamp(lineCount, 2, 10);
     }
 }
