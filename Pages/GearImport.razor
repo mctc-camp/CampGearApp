@@ -242,12 +242,15 @@
     private List<ImportRow> ParseCsv(string csvText)
     {
         var result = new List<ImportRow>();
-        var lines = csvText.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
 
-        for (int i = 0; i < lines.Length; i++)
+        // ダブルクォートの中にある改行（Excelのセル内改行）は区切りとみなさず、
+        // ダブルクォートの外にある改行だけを「行の区切り」として扱う
+        var rawLines = SplitCsvIntoLines(csvText);
+
+        for (int i = 0; i < rawLines.Count; i++)
         {
             var lineNumber = i + 1;
-            var line = lines[i];
+            var line = rawLines[i];
 
             if (lineNumber == 1) continue; // 見出し行はスキップ
             if (string.IsNullOrWhiteSpace(line)) continue; // 空行はスキップ
@@ -401,6 +404,44 @@
 
         result.Add(current.ToString());
         return result;
+    }
+
+    // CSV全体を、ダブルクォートの中の改行を区切りとみなさずに「行」の単位に分割する
+    private List<string> SplitCsvIntoLines(string csvText)
+    {
+        var lines = new List<string>();
+        var current = new StringBuilder();
+        bool inQuotes = false;
+
+        var normalized = csvText.Replace("\r\n", "\n").Replace("\r", "\n");
+
+        for (int i = 0; i < normalized.Length; i++)
+        {
+            var c = normalized[i];
+
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+                current.Append(c);
+            }
+            else if (c == '\n' && !inQuotes)
+            {
+                // ダブルクォートの外の改行なので、ここで1行区切りとする
+                lines.Add(current.ToString());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+
+        if (current.Length > 0)
+        {
+            lines.Add(current.ToString());
+        }
+
+        return lines;
     }
 
     // ---- 一括登録実行 ----
