@@ -320,6 +320,40 @@ public class GearDataService
         return true;
     }
 
+    // CSV取り込み専用：カテゴリ名+ギア名が一致する既存ギアがあれば上書き、無ければ新規登録する
+    public bool AddOrUpdateGearByCategoryAndName(GearItem gear, out bool wasUpdated)
+    {
+        wasUpdated = false;
+
+        var existing = Gears.FirstOrDefault(g =>
+            !g.IsDeleted &&
+            g.Category == gear.Category &&
+            g.Name == gear.Name);
+
+        if (existing != null)
+        {
+            existing.WeightGram = gear.WeightGram;
+            existing.IsPacked = gear.IsPacked;
+            existing.Maker = gear.Maker;
+            existing.Url = gear.Url;
+            existing.PurchaseDate = gear.PurchaseDate;
+            existing.PurchaseStore = gear.PurchaseStore;
+            existing.PurchasePrice = gear.PurchasePrice;
+            existing.Memo = gear.Memo;
+            // 写真(PhotoDataUrl)は上書きしない。既存の写真をそのまま維持する。
+
+            wasUpdated = true;
+            NotifyChangeAndSave();
+            return true;
+        }
+
+        gear.SortOrder = Gears.Count;
+        Gears.Add(gear);
+
+        NotifyChangeAndSave();
+        return true;
+    }
+
     public GearItem? FindGearById(Guid id) => Gears.FirstOrDefault(g => g.Id == id);
 
     public bool UpdateGear(Guid id, GearItem editedGear, out string errorMessage)
