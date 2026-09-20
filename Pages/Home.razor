@@ -38,49 +38,37 @@ else
 
 @if (filteredList.Count > 0)
 {
-    <div class="table-scroll">
-        <table class="gear-table">
-            <thead>
-                <tr>
-                    <th>パック</th>
-                    <th>写真</th>
-                    <th>ギア名</th>
-                    <th>重量(g)</th>
-                    <th></th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="gear-sortable-list">
-                @foreach (var gear in filteredList)
-                {
-                    var canDrag = !string.IsNullOrEmpty(filterCategory) && !gear.IsDeleted;
+    <ul class="gear-card-list" id="gear-sortable-list">
+        @foreach (var gear in filteredList)
+        {
+            var canDrag = !string.IsNullOrEmpty(filterCategory) && !gear.IsDeleted;
 
-                    <tr @key="gear.Id" data-id="@gear.Id" class="@(gear.IsDeleted ? "row-deleted" : "")">
-                        <td>
-                            <input type="checkbox" @bind="gear.IsPacked" @bind:after="DataService.SaveGearQuickChange" />
-                        </td>
-                        <td>
-                            @if (!string.IsNullOrEmpty(gear.PhotoDataUrl))
-                            {
-                                <img class="photo-thumb" src="@gear.PhotoDataUrl" alt="@gear.Name" />
-                            }
-                        </td>
-                        <td>@gear.Name</td>
-                        <td>@gear.WeightGram</td>
-                        <td>
-                            <button class="btn btn-small btn-primary" @onclick="() => EditGear(gear)">編集</button>
-                        </td>
-                        <td>
-                            @if (canDrag)
-                            {
-                                <span class="drag-handle" title="ドラッグして並び替え">☰</span>
-                            }
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+            <li @key="gear.Id" data-id="@gear.Id" class="gear-card @(gear.IsDeleted ? "row-deleted" : "")">
+                <div class="gear-card-photo">
+                    @if (!string.IsNullOrEmpty(gear.PhotoDataUrl))
+                    {
+                        <img class="photo-thumb" src="@gear.PhotoDataUrl" alt="@gear.Name" />
+                    }
+                </div>
+
+                <div class="gear-card-main">
+                    <div class="gear-card-name">@gear.Name</div>
+                </div>
+
+                <div class="gear-card-actions">
+                    <label class="gear-card-pack">
+                        <input type="checkbox" @bind="gear.IsPacked" @bind:after="DataService.SaveGearQuickChange" />
+                        パック
+                    </label>
+                    <button class="btn btn-small btn-primary" @onclick="() => EditGear(gear)">編集</button>
+                    @if (canDrag)
+                    {
+                        <span class="drag-handle" title="ドラッグして並び替え">☰</span>
+                    }
+                </div>
+            </li>
+        }
+    </ul>
 }
 else
 {
