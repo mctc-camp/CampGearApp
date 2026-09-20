@@ -116,9 +116,10 @@
             @(IsEditMode ? "更新する" : "ギアを登録")
         </button>
 
+        <button type="button" class="btn btn-secondary" @onclick="CancelEdit">戻る</button>
+
         @if (IsEditMode)
         {
-            <button type="button" class="btn btn-small" @onclick="CancelEdit">キャンセルして一覧に戻る</button>
             <button type="button" class="btn btn-small btn-danger" @onclick="DeleteGearPermanently">このギアを完全に削除する</button>
         }
     </div>
