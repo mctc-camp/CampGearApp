@@ -458,3 +458,18 @@ row-deleted
     background: #6c757d;
     color: #fff;
 }
+
+.gear-category-heading {
+    list-style: none;
+    font-weight: bold;
+    font-size: 0.95rem;
+    color: #2b3a42;
+    margin-top: 1.2rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 2px solid #2b3a42;
+}
+
+.gear-category-heading:first-child {
+    margin-top: 0;
+}

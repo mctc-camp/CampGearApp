@@ -39,9 +39,19 @@ else
 @if (filteredList.Count > 0)
 {
     <ul class="gear-card-list" id="gear-sortable-list">
+        @{
+            string? previousCategory = null;
+        }
         @foreach (var gear in filteredList)
         {
             var canDrag = !string.IsNullOrEmpty(filterCategory) && !gear.IsDeleted;
+
+            // 「すべて表示」の時だけ、カテゴリが変わるタイミングで見出しを挟む
+            @if (string.IsNullOrEmpty(filterCategory) && gear.Category != previousCategory)
+            {
+                <li class="gear-category-heading">@gear.Category</li>
+                previousCategory = gear.Category;
+            }
 
             <li @key="gear.Id" data-id="@gear.Id" class="gear-card @(gear.IsDeleted ? "row-deleted" : "")">
                 <div class="gear-card-photo">
