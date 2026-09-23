@@ -22,6 +22,20 @@
 
 <div class="section-box">
     <h3>ギアから選ぶ</h3>
+
+    <div class="form-row">
+        <label>
+            カテゴリで絞り込み：
+            <select @bind="filterCategory">
+                <option value="">すべて表示</option>
+                @foreach (var cat in DataService.Categories.OrderBy(c => c.SortOrder))
+                {
+                    <option value="@cat.Name">@cat.Name</option>
+                }
+            </select>
+        </label>
+    </div>
+
     @if (availableGears.Count == 0)
     {
         <p class="hint">登録されているギアがありません。</p>
@@ -29,7 +43,7 @@
     else
     {
         <ul class="checklist-select-list">
-            @foreach (var gear in availableGears)
+            @foreach (var gear in filteredAvailableGears)
             {
                 <li>
                     <label class="checkbox-label">
@@ -40,6 +54,7 @@
                             <img class="photo-thumb" src="@gear.PhotoDataUrl" alt="@gear.Name" />
                         }
                         @gear.Name
+                        <span class="hint">（@gear.Category）</span>
                     </label>
                 </li>
             }
@@ -89,11 +104,18 @@
     private string title = string.Empty;
     private DateTime eventDate = DateTime.Today;
     private string errorMessage = string.Empty;
+    private string filterCategory = string.Empty;
 
     private HashSet<Guid> selectedGearIds = new();
     private HashSet<Guid> selectedSetIds = new();
 
     private List<GearItem> availableGears => DataService.Gears.Where(g => !g.IsDeleted).OrderBy(g => g.Name).ToList();
+
+    private List<GearItem> filteredAvailableGears =>
+        string.IsNullOrEmpty(filterCategory)
+            ? availableGears
+            : availableGears.Where(g => g.Category == filterCategory).ToList();
+
     private List<SetItem> availableSets => DataService.Sets.OrderBy(s => s.SortOrder).ToList();
 
     private void ToggleGear(Guid gearId, object? checkedValue)

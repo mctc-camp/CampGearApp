@@ -19,35 +19,25 @@
 }
 else
 {
-    <div class="table-scroll">
-        <table class="gear-table">
-            <thead>
-                <tr>
-                    <th>使用日</th>
-                    <th>チェックリスト名</th>
-                    <th>進捗</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var checklist in DataService.Checklists.OrderByDescending(c => c.EventDate))
-                {
-                    var total = checklist.Entries.Count;
-                    var checkedCount = checklist.Entries.Count(e => e.IsChecked);
+    <ul class="checklist-card-list">
+        @foreach (var checklist in DataService.Checklists.OrderByDescending(c => c.EventDate))
+        {
+            var total = checklist.Entries.Count;
+            var checkedCount = checklist.Entries.Count(e => e.IsChecked);
 
-                    <tr>
-                        <td>@checklist.EventDate.ToString("yyyy/MM/dd")</td>
-                        <td>@checklist.Title</td>
-                        <td>@checkedCount / @total</td>
-                        <td>
-                            <button class="btn btn-small btn-primary" @onclick="() => OpenChecklist(checklist)">開く</button>
-                            <button class="btn btn-small btn-danger" @onclick="() => DeleteChecklist(checklist)">削除</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+            <li class="checklist-card">
+                <div class="checklist-card-main">
+                    <div class="checklist-card-date">@checklist.EventDate.ToString("yyyy/MM/dd")</div>
+                    <div class="checklist-card-title">@checklist.Title</div>
+                    <div class="checklist-card-progress">進捗：@checkedCount / @total</div>
+                </div>
+                <div class="checklist-card-actions">
+                    <button class="btn btn-small btn-primary" @onclick="() => OpenChecklist(checklist)">開く</button>
+                    <button class="btn btn-small btn-danger" @onclick="() => DeleteChecklist(checklist)">削除</button>
+                </div>
+            </li>
+        }
+    </ul>
 }
 
 @code {
