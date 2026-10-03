@@ -46,7 +46,6 @@ else
         {
             var canDrag = !string.IsNullOrEmpty(filterCategory) && !gear.IsDeleted;
 
-            // 「すべて表示」の時だけ、カテゴリが変わるタイミングで見出しを挟む
             @if (string.IsNullOrEmpty(filterCategory) && gear.Category != previousCategory)
             {
                 <li class="gear-category-heading">@gear.Category</li>
@@ -66,10 +65,6 @@ else
                 </div>
 
                 <div class="gear-card-actions">
-                    <label class="gear-card-pack">
-                        <input type="checkbox" @bind="gear.IsPacked" @bind:after="DataService.SaveGearQuickChange" />
-                        パック
-                    </label>
                     <button class="btn btn-small btn-primary" @onclick="() => EditGear(gear)">編集</button>
                     @if (canDrag)
                     {
@@ -84,23 +79,6 @@ else
 {
     <p class="hint">登録されているギアがありません。「ギア登録」画面から追加してください。</p>
 }
-
-<div class="weight-summary-fixed">
-    <div class="weight-summary-item">
-        <span class="label">パッキング対象</span>
-        <span class="value">
-            @DataService.TotalPackedWeightGram g
-            (@DataService.TotalPackedWeightKg.ToString("0.00") kg)
-        </span>
-    </div>
-    <div class="weight-summary-item">
-        <span class="label">全体合計</span>
-        <span class="value">
-            @DataService.TotalAllWeightGram g
-            (@DataService.TotalAllWeightKg.ToString("0.00") kg)
-        </span>
-    </div>
-</div>
 
 @code {
     private string filterCategory = string.Empty;

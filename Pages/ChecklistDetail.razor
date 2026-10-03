@@ -74,7 +74,17 @@ else
         }
     </ul>
 
-    <button class="btn btn-small" @onclick="BackToList">一覧に戻る</button>
+    <button class="btn btn-secondary" @onclick="BackToList">一覧に戻る</button>
+
+    <div class="weight-summary-fixed">
+        <div class="weight-summary-item">
+            <span class="label">このチェックリストの合計重量</span>
+            <span class="value">
+                @DataService.GetChecklistTotalWeightGram(checklist) g
+                (@DataService.GetChecklistTotalWeightKg(checklist).ToString("0.00") kg)
+            </span>
+        </div>
+    </div>
 }
 
 @code {

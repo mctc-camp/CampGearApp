@@ -44,11 +44,6 @@
         </label>
 
         <label class="checkbox-label">
-            <input type="checkbox" @bind="newGear.IsPacked" />
-            パッキング対象にする
-        </label>
-
-        <label class="checkbox-label">
             <input type="checkbox" @bind="newGear.IsDeleted" />
             紛失・廃棄済み等
         </label>
@@ -166,7 +161,6 @@
                 Category = existing.Category,
                 Name = existing.Name,
                 WeightGram = existing.WeightGram,
-                IsPacked = existing.IsPacked,
                 Memo = existing.Memo,
                 PhotoDataUrl = existing.PhotoDataUrl,
                 Url = existing.Url,

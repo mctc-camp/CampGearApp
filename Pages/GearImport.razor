@@ -43,42 +43,36 @@
                 </tr>
                 <tr>
                     <td>4</td>
-                    <td>パッキング対象</td>
-                    <td>1</td>
-                    <td>1=対象 / 0=対象外</td>
-                </tr>
-                <tr>
-                    <td>5</td>
                     <td>メーカー</td>
                     <td>モンベル</td>
                     <td>省略可</td>
                 </tr>
                 <tr>
-                    <td>6</td>
+                    <td>5</td>
                     <td>URL</td>
                     <td>https://...</td>
                     <td>省略可</td>
                 </tr>
                 <tr>
-                    <td>7</td>
+                    <td>6</td>
                     <td>購入日</td>
                     <td>2024-05-01</td>
                     <td>省略可（yyyy-MM-dd形式）</td>
                 </tr>
                 <tr>
-                    <td>8</td>
+                    <td>7</td>
                     <td>購入場所</td>
                     <td>好日山荘</td>
                     <td>省略可</td>
                 </tr>
                 <tr>
-                    <td>9</td>
+                    <td>8</td>
                     <td>購入金額</td>
                     <td>32000</td>
                     <td>省略可・数字のみ</td>
                 </tr>
                 <tr>
-                    <td>10</td>
+                    <td>9</td>
                     <td>メモ</td>
                     <td>2人用</td>
                     <td>省略可</td>
@@ -124,7 +118,6 @@
                         <th>カテゴリ</th>
                         <th>ギア名</th>
                         <th>重量(g)</th>
-                        <th>パック</th>
                         <th>メーカー</th>
                         <th>購入日</th>
                         <th>購入金額</th>
@@ -140,7 +133,6 @@
                             <td>@row.Gear?.Category</td>
                             <td>@row.Gear?.Name</td>
                             <td>@row.Gear?.WeightGram</td>
-                            <td>@(row.Gear?.IsPacked == true ? "対象" : "対象外")</td>
                             <td>@row.Gear?.Maker</td>
                             <td>@(row.Gear?.PurchaseDate?.ToString("yyyy/MM/dd"))</td>
                             <td>@(row.Gear?.PurchasePrice.HasValue == true ? $"{row.Gear.PurchasePrice:N0}円" : "")</td>
@@ -165,9 +157,9 @@
 
 @code {
     private const string sampleCsv =
-        "カテゴリ,ギア名,重量g,パッキング対象,メーカー,URL,購入日,購入場所,購入金額,メモ\n" +
-        "テント,ステラリッジ2,1800,1,モンベル,https://example.com,2024-05-01,好日山荘,32000,2人用\n" +
-        "クッカー,エバニューチタンクッカー,180,1,エバニュー,,2023-11-10,,3500,";
+        "カテゴリ,ギア名,重量g,メーカー,URL,購入日,購入場所,購入金額,メモ\n" +
+        "テント,ステラリッジ2,1800,モンベル,https://example.com,2024-05-01,好日山荘,32000,2人用\n" +
+        "クッカー,エバニューチタンクッカー,180,エバニュー,,2023-11-10,,3500,";
 
     private bool isLoading;
     private string loadErrorMessage = string.Empty;
@@ -262,7 +254,6 @@
             var category = cols.ElementAtOrDefault(0)?.Trim() ?? "";
             var name = cols.ElementAtOrDefault(1)?.Trim() ?? "";
             var weightText = cols.ElementAtOrDefault(2)?.Trim() ?? "";
-            var packedText = cols.ElementAtOrDefault(3)?.Trim() ?? "";
             var maker = cols.ElementAtOrDefault(4)?.Trim() ?? "";
             var url = cols.ElementAtOrDefault(5)?.Trim() ?? "";
             var dateText = cols.ElementAtOrDefault(6)?.Trim() ?? "";
@@ -293,8 +284,6 @@
                 result.Add(row);
                 continue;
             }
-
-            var isPacked = packedText == "1" || packedText.Equals("TRUE", StringComparison.OrdinalIgnoreCase) || packedText == "有";
 
             DateTime? purchaseDate = null;
             if (!string.IsNullOrEmpty(dateText))
@@ -334,7 +323,6 @@
                 Category = category,
                 Name = name,
                 WeightGram = weight,
-                IsPacked = isPacked,
                 Maker = maker,
                 Url = url,
                 PurchaseDate = purchaseDate,

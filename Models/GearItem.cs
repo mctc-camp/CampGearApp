@@ -7,7 +7,6 @@ public class GearItem
     public string Category { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public int WeightGram { get; set; }
-    public bool IsPacked { get; set; }
     public string Memo { get; set; } = string.Empty;
 
     public string PhotoDataUrl { get; set; } = string.Empty;

@@ -333,7 +333,6 @@ public class GearDataService
         if (existing != null)
         {
             existing.WeightGram = gear.WeightGram;
-            existing.IsPacked = gear.IsPacked;
             existing.Maker = gear.Maker;
             existing.Url = gear.Url;
             existing.PurchaseDate = gear.PurchaseDate;
@@ -382,7 +381,6 @@ public class GearDataService
         target.Category = editedGear.Category;
         target.Name = editedGear.Name;
         target.WeightGram = editedGear.WeightGram;
-        target.IsPacked = editedGear.IsPacked;
         target.Memo = editedGear.Memo;
         target.PhotoDataUrl = editedGear.PhotoDataUrl;
         target.Url = editedGear.Url;
@@ -394,11 +392,6 @@ public class GearDataService
 
         NotifyChangeAndSave();
         return true;
-    }
-
-    public void SaveGearQuickChange()
-    {
-        NotifyChangeAndSave();
     }
 
     public void RemoveGear(GearItem gear)
@@ -437,9 +430,6 @@ public class GearDataService
     }
 
     // ---- 合計重量 ----
-    public int TotalPackedWeightGram => Gears.Where(g => !g.IsDeleted && g.IsPacked).Sum(g => g.WeightGram);
-    public double TotalPackedWeightKg => TotalPackedWeightGram / 1000.0;
-
     public int TotalAllWeightGram => Gears.Where(g => !g.IsDeleted).Sum(g => g.WeightGram);
     public double TotalAllWeightKg => TotalAllWeightGram / 1000.0;
 
@@ -662,5 +652,42 @@ public class GearDataService
         }
 
         return entry.ChildrenSnapshot;
+    }
+
+    // チェックリストに登録されている全項目（親＋セットの子）の合計重量を計算する
+    public int GetChecklistTotalWeightGram(ChecklistItem checklist)
+    {
+        int total = 0;
+
+        foreach (var entry in checklist.Entries)
+        {
+            if (entry.EntryType == ChecklistEntryType.Gear)
+            {
+                var gear = FindGearById(entry.GearId ?? Guid.Empty);
+                if (gear != null && !gear.IsDeleted)
+                {
+                    total += gear.WeightGram;
+                }
+            }
+            else if (entry.EntryType == ChecklistEntryType.Set)
+            {
+                var children = GetDisplayChildren(checklist, entry);
+                foreach (var child in children)
+                {
+                    var childGear = FindGearById(child.GearId);
+                    if (childGear != null && !childGear.IsDeleted)
+                    {
+                        total += childGear.WeightGram;
+                    }
+                }
+            }
+        }
+
+        return total;
+    }
+
+    public double GetChecklistTotalWeightKg(ChecklistItem checklist)
+    {
+        return GetChecklistTotalWeightGram(checklist) / 1000.0;
     }
 }
