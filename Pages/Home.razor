@@ -125,6 +125,11 @@ else
                 lastFilterCategory = string.Empty;
                 lastGearCount = -1;
             }
+
+            if (firstRender)
+            {
+                await TryScrollToQueryTarget();
+            }
             return;
         }
 
@@ -141,6 +146,8 @@ else
         dotNetRef ??= DotNetObjectReference.Create(this);
         await JS.InvokeVoidAsync("sortableInterop.init", "gear-sortable-list", dotNetRef);
         jsInitialized = true;
+
+        await TryScrollToQueryTarget();
     }
 
     [JSInvokable]
@@ -166,5 +173,32 @@ else
         }
 
         dotNetRef?.Dispose();
+    }
+
+    private bool hasScrolled;
+
+    private async Task TryScrollToQueryTarget()
+    {
+        if (hasScrolled)
+        {
+            return;
+        }
+
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = uri.Query; // 例: "?scrollTo=xxxxxxxx-xxxx-..."
+
+        if (string.IsNullOrEmpty(query) || !query.Contains("scrollTo="))
+        {
+            return;
+        }
+
+        var afterKey = query.Split("scrollTo=")[1];
+        var scrollToValue = afterKey.Split('&')[0];
+
+        if (!string.IsNullOrEmpty(scrollToValue))
+        {
+            hasScrolled = true;
+            await JS.InvokeVoidAsync("sortableInterop.scrollToElement", scrollToValue);
+        }
     }
 }

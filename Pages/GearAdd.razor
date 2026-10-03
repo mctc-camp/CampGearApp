@@ -181,13 +181,26 @@
         errorMessage = string.Empty;
     }
 
+    private void NavigateBackToList()
+    {
+        if (IsEditMode)
+        {
+            // 編集していたギアの位置に戻れるよう、IDをクエリパラメータで渡す
+            Navigation.NavigateTo($"?scrollTo={GearId}");
+        }
+        else
+        {
+            Navigation.NavigateTo("");
+        }
+    }
+
     private void SubmitGear()
     {
         if (IsEditMode)
         {
             if (DataService.UpdateGear(GearId!.Value, newGear, out errorMessage))
             {
-                Navigation.NavigateTo("");
+                NavigateBackToList();
             }
         }
         else
@@ -203,7 +216,7 @@
 
     private void CancelEdit()
     {
-        Navigation.NavigateTo("");
+        NavigateBackToList();
     }
 
     private async Task DeleteGearPermanently()
@@ -246,11 +259,9 @@
         await stream.CopyToAsync(ms);
         var bytes = ms.ToArray();
 
-        // アップロード完了までの間、選んだ写真をその場でプレビュー表示する
         var base64 = Convert.ToBase64String(bytes);
         localPreviewDataUrl = $"data:{resizedFile.ContentType};base64,{base64}";
 
-        // 差し替え前の写真を記憶しておき、アップロード成功後に古い写真を削除する
         previousPhotoUrl = newGear.PhotoDataUrl;
 
         isUploadingPhoto = true;
@@ -268,14 +279,11 @@
                 _ = DataService.DeletePhotoAsync(previousPhotoUrl);
             }
         }
-        // 失敗時はlocalPreviewDataUrlのプレビューのまま残し、newGear.PhotoDataUrlは更新しない
-        // （DataService.LastErrorMessageにエラー内容が表示される）
 
         isUploadingPhoto = false;
         StateHasChanged();
     }
 
-    // メモの行数に応じて、textareaの表示行数を決める（最低2行、最大10行まで）
     private int GetMemoRows()
     {
         if (string.IsNullOrEmpty(newGear.Memo))

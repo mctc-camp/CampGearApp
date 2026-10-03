@@ -30,5 +30,15 @@ window.sortableInterop = {
             window.sortableInterop.lists[elementId].destroy();
             delete window.sortableInterop.lists[elementId];
         }
+    },
+
+    scrollToElement: function (dataId) {
+        // 少し遅らせることで、Blazorの描画が完全に終わってから実行する
+        setTimeout(function () {
+            const el = document.querySelector('[data-id="' + dataId + '"]');
+            if (el) {
+                el.scrollIntoView({ behavior: 'instant', block: 'center' });
+            }
+        }, 50);
     }
 };
