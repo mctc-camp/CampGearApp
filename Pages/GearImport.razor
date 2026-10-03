@@ -254,12 +254,12 @@
             var category = cols.ElementAtOrDefault(0)?.Trim() ?? "";
             var name = cols.ElementAtOrDefault(1)?.Trim() ?? "";
             var weightText = cols.ElementAtOrDefault(2)?.Trim() ?? "";
-            var maker = cols.ElementAtOrDefault(4)?.Trim() ?? "";
-            var url = cols.ElementAtOrDefault(5)?.Trim() ?? "";
-            var dateText = cols.ElementAtOrDefault(6)?.Trim() ?? "";
-            var store = cols.ElementAtOrDefault(7)?.Trim() ?? "";
-            var priceText = cols.ElementAtOrDefault(8)?.Trim() ?? "";
-            var memo = cols.ElementAtOrDefault(9)?.Trim() ?? "";
+            var maker = cols.ElementAtOrDefault(3)?.Trim() ?? "";
+            var url = cols.ElementAtOrDefault(4)?.Trim() ?? "";
+            var dateText = cols.ElementAtOrDefault(5)?.Trim() ?? "";
+            var store = cols.ElementAtOrDefault(6)?.Trim() ?? "";
+            var priceText = cols.ElementAtOrDefault(7)?.Trim() ?? "";
+            var memo = cols.ElementAtOrDefault(8)?.Trim() ?? "";
 
             if (string.IsNullOrEmpty(category))
             {
@@ -288,7 +288,8 @@
             DateTime? purchaseDate = null;
             if (!string.IsNullOrEmpty(dateText))
             {
-                if (DateTime.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
+                if (DateTime.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var parsedDate)
+                    || DateTime.TryParse(dateText, new CultureInfo("ja-JP"), DateTimeStyles.AllowWhiteSpaces, out parsedDate))
                 {
                     purchaseDate = parsedDate;
                 }
