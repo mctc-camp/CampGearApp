@@ -24,19 +24,38 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Google関連の通信には一切介入しない（リダイレクトを妨げないため）
+    // Googleスプレッドシート(Apps Script)への通信だけは、一切横取りしない。
+    // 302リダイレクトを正しく追従させるため、ブラウザ本来の処理に完全に任せる。
     if (
         url.hostname.includes('script.google.com') ||
-        url.hostname.includes('script.googleusercontent.com') ||
-        url.hostname.includes('drive.google.com') ||
-        url.hostname.includes('googleusercontent.com')
+        url.hostname.includes('script.googleusercontent.com')
     ) {
         return;
     }
 
-    // それ以外（アプリ本体のファイル）は、
-    // 「まずネットワークから取得。失敗した場合のみキャッシュを使う」というシンプルな方式にする。
-    // これによりファイルの二重取得や適用順序の問題を避ける。
+    // Googleドライブの写真表示は、オフラインでも見られるようキャッシュの対象にする。
+    // 「まずネットワークから取得を試み、失敗したらキャッシュを使う」という安全な方式。
+    if (
+        url.hostname.includes('drive.google.com') ||
+        url.hostname.includes('googleusercontent.com')
+    ) {
+        event.respondWith(
+            fetch(event.request)
+                .then(networkResponse => {
+                    if (networkResponse.ok) {
+                        const responseClone = networkResponse.clone();
+                        caches.open(CACHE_NAME).then(cache => {
+                            cache.put(event.request, responseClone);
+                        });
+                    }
+                    return networkResponse;
+                })
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
+    // アプリ本体のファイル（HTML/CSS/JS/画像）は、キャッシュ優先＋裏側で更新する
     event.respondWith(
         fetch(event.request)
             .then(networkResponse => {
