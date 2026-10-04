@@ -3,6 +3,7 @@ using CampGearApp.Services;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using System.Text;
+using Microsoft.JSInterop;
 
 // Shift-JIS(日本語Windows版Excelの標準的なCSV文字コード)を読み込めるようにする
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -22,7 +23,8 @@ builder.Services.AddSingleton(httpClient);
 builder.Services.AddSingleton(sp =>
 {
     var client = sp.GetRequiredService<HttpClient>();
-    return new GearDataService(client, appsScriptUrl);
+    var jsRuntime = sp.GetRequiredService<IJSRuntime>();
+    return new GearDataService(client, appsScriptUrl, jsRuntime);
 });
 
 var host = builder.Build();

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CampGearApp.Models;
+using Microsoft.JSInterop;
 
 namespace CampGearApp.Services;
 
@@ -8,6 +9,9 @@ public class GearDataService
 {
     private readonly HttpClient _httpClient;
     private readonly string _appsScriptUrl;
+    private readonly IJSRuntime _jsRuntime;
+
+    private const string LocalStorageKey = "campgear-offline-snapshot";
 
     public List<CategoryItem> Categories { get; private set; } = new();
     public List<GearItem> Gears { get; private set; } = new();
@@ -21,10 +25,14 @@ public class GearDataService
     public bool IsUploadingPhoto { get; private set; }
     public string LastErrorMessage { get; private set; } = string.Empty;
 
-    public GearDataService(HttpClient httpClient, string appsScriptUrl)
+    // オフラインの保存データを表示している状態かどうか（画面側で参照はしないが、将来の拡張用に保持）
+    public bool IsShowingOfflineSnapshot { get; private set; }
+
+    public GearDataService(HttpClient httpClient, string appsScriptUrl, IJSRuntime jsRuntime)
     {
         _httpClient = httpClient;
         _appsScriptUrl = appsScriptUrl;
+        _jsRuntime = jsRuntime;
     }
 
     public void NotifyChange()
@@ -32,14 +40,24 @@ public class GearDataService
         OnChange?.Invoke();
     }
 
-    // ---- スプレッドシートからの読み込み ----
+    // ---- 起動時の読み込み：まずブラウザ内の保存データがあれば即表示し、裏側でサーバーから最新を取りに行く ----
     public async Task LoadFromServerAsync()
     {
         IsLoading = true;
         LastErrorMessage = string.Empty;
         NotifyChange();
 
-        const int maxRetryCount = 3;
+        // ① ブラウザ内に保存されている前回のデータがあれば、まずそれを即座に表示する
+        var hadLocalSnapshot = await TryLoadLocalSnapshotAsync();
+        if (hadLocalSnapshot)
+        {
+            IsShowingOfflineSnapshot = true;
+            IsLoading = false;
+            NotifyChange();
+        }
+
+        // ② 裏側（またはローカルデータが無ければ画面を止めたまま）でサーバーから最新データを取得する
+        int maxRetryCount = hadLocalSnapshot ? 1 : 3;
 
         for (int attempt = 1; attempt <= maxRetryCount; attempt++)
         {
@@ -49,38 +67,29 @@ public class GearDataService
                 response.EnsureSuccessStatusCode();
 
                 var json = await response.Content.ReadAsStringAsync();
+                ApplySnapshotJson(json);
 
-                if (string.IsNullOrWhiteSpace(json) || json.Trim() == "{}" || json.Trim() == "[]")
-                {
-                    Categories = new();
-                    Gears = new();
-                    Sets = new();
-                    Checklists = new();
-                }
-                else
-                {
-                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    var snapshot = JsonSerializer.Deserialize<AppDataSnapshot>(json, options);
+                // サーバーから取得できたので、オフライン保存用にも最新内容を保存し直す
+                await SaveLocalSnapshotAsync();
 
-                    Categories = snapshot?.Categories ?? new();
-                    Gears = snapshot?.Gears ?? new();
-                    Sets = snapshot?.Sets ?? new();
-                    Checklists = snapshot?.Checklists ?? new();
-                }
-
-                // 成功したのでリトライループを抜ける
                 LastErrorMessage = string.Empty;
+                IsShowingOfflineSnapshot = false;
                 break;
             }
             catch (Exception ex)
             {
+                if (hadLocalSnapshot)
+                {
+                    // 既にローカルデータを表示できているので、通信失敗してもエラー表示はしない（静かに諦める）
+                    break;
+                }
+
                 if (attempt == maxRetryCount)
                 {
                     LastErrorMessage = $"データの読み込みに失敗しました（{maxRetryCount}回試行）：{ex.Message}";
                 }
                 else
                 {
-                    // 少し待ってから再試行する
                     await Task.Delay(1000 * attempt);
                 }
             }
@@ -88,6 +97,68 @@ public class GearDataService
 
         IsLoading = false;
         NotifyChange();
+    }
+
+    private void ApplySnapshotJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json) || json.Trim() == "{}" || json.Trim() == "[]")
+        {
+            Categories = new();
+            Gears = new();
+            Sets = new();
+            Checklists = new();
+        }
+        else
+        {
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var snapshot = JsonSerializer.Deserialize<AppDataSnapshot>(json, options);
+
+            Categories = snapshot?.Categories ?? new();
+            Gears = snapshot?.Gears ?? new();
+            Sets = snapshot?.Sets ?? new();
+            Checklists = snapshot?.Checklists ?? new();
+        }
+    }
+
+    // ---- ブラウザ内（localStorage）への保存・読み込み ----
+    private async Task<bool> TryLoadLocalSnapshotAsync()
+    {
+        try
+        {
+            var json = await _jsRuntime.InvokeAsync<string?>("localStorage.getItem", LocalStorageKey);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return false;
+            }
+
+            ApplySnapshotJson(json);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task SaveLocalSnapshotAsync()
+    {
+        try
+        {
+            var snapshot = new AppDataSnapshot
+            {
+                Categories = Categories,
+                Gears = Gears,
+                Sets = Sets,
+                Checklists = Checklists
+            };
+
+            var json = JsonSerializer.Serialize(snapshot);
+            await _jsRuntime.InvokeVoidAsync("localStorage.setItem", LocalStorageKey, json);
+        }
+        catch
+        {
+            // ローカル保存に失敗しても、アプリの動作自体には影響しないため無視する
+        }
     }
 
     // ---- スプレッドシートへの保存 ----
@@ -112,6 +183,9 @@ public class GearDataService
 
             var response = await _httpClient.PostAsync(_appsScriptUrl, content);
             response.EnsureSuccessStatusCode();
+
+            // 保存に成功したら、ブラウザ内の控えも最新化しておく
+            await SaveLocalSnapshotAsync();
         }
         catch (Exception ex)
         {
@@ -178,7 +252,6 @@ public class GearDataService
         }
     }
 
-    // ---- 写真削除（不要になった写真をドライブから削除。失敗しても致命的ではないため無視） ----
     public async Task DeletePhotoAsync(string? photoUrl)
     {
         if (string.IsNullOrEmpty(photoUrl))
@@ -207,7 +280,6 @@ public class GearDataService
         }
         catch
         {
-            // 写真削除の失敗はアプリの動作に致命的ではないため無視する
         }
     }
 
@@ -245,7 +317,6 @@ public class GearDataService
         NotifyChangeAndSave();
     }
 
-    // カテゴリ名の変更（ギア・セット側で使われているカテゴリ名も連動して更新する）
     public bool UpdateCategoryName(CategoryItem category, string newName, out string errorMessage)
     {
         errorMessage = string.Empty;
@@ -271,7 +342,6 @@ public class GearDataService
 
         category.Name = newName;
 
-        // このカテゴリ名を使っているギアも、あわせて新しい名前に更新する
         foreach (var gear in Gears.Where(g => g.Category == oldName))
         {
             gear.Category = newName;
@@ -281,7 +351,27 @@ public class GearDataService
         return true;
     }
 
-    // カテゴリを、ドラッグ後の並び順(idの一覧)通りに更新する
+    public void MoveCategory(CategoryItem cat, int direction)
+    {
+        var ordered = Categories.OrderBy(c => c.SortOrder).ToList();
+        var index = ordered.IndexOf(cat);
+        var newIndex = index + direction;
+
+        if (newIndex < 0 || newIndex >= ordered.Count)
+        {
+            return;
+        }
+
+        (ordered[index], ordered[newIndex]) = (ordered[newIndex], ordered[index]);
+
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            ordered[i].SortOrder = i;
+        }
+
+        NotifyChangeAndSave();
+    }
+
     public void ReorderCategoriesByIds(List<Guid> orderedIds)
     {
         for (int i = 0; i < orderedIds.Count; i++)
@@ -320,7 +410,6 @@ public class GearDataService
         return true;
     }
 
-    // CSV取り込み専用：カテゴリ名+ギア名が一致する既存ギアがあれば上書き、無ければ新規登録する
     public bool AddOrUpdateGearByCategoryAndName(GearItem gear, out bool wasUpdated)
     {
         wasUpdated = false;
@@ -339,7 +428,6 @@ public class GearDataService
             existing.PurchaseStore = gear.PurchaseStore;
             existing.PurchasePrice = gear.PurchasePrice;
             existing.Memo = gear.Memo;
-            // 写真(PhotoDataUrl)は上書きしない。既存の写真をそのまま維持する。
 
             wasUpdated = true;
             NotifyChangeAndSave();
@@ -414,7 +502,31 @@ public class GearDataService
         NotifyChangeAndSave();
     }
 
-    // 指定カテゴリ内のギアを、ドラッグ後の並び順(idの一覧)通りに更新する
+    public void MoveGear(GearItem gear, string category, int direction)
+    {
+        var ordered = Gears
+            .Where(g => g.Category == category && !g.IsDeleted)
+            .OrderBy(g => g.SortOrder)
+            .ToList();
+
+        var index = ordered.IndexOf(gear);
+        var newIndex = index + direction;
+
+        if (newIndex < 0 || newIndex >= ordered.Count)
+        {
+            return;
+        }
+
+        (ordered[index], ordered[newIndex]) = (ordered[newIndex], ordered[index]);
+
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            ordered[i].SortOrder = i;
+        }
+
+        NotifyChangeAndSave();
+    }
+
     public void ReorderGearsByIds(string category, List<Guid> orderedIds)
     {
         for (int i = 0; i < orderedIds.Count; i++)
@@ -654,7 +766,6 @@ public class GearDataService
         return entry.ChildrenSnapshot;
     }
 
-    // チェックリストに登録されている全項目（親＋セットの子）の合計重量を計算する
     public int GetChecklistTotalWeightGram(ChecklistItem checklist)
     {
         int total = 0;
