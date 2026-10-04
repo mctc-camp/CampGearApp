@@ -52,7 +52,8 @@ else
                 previousCategory = gear.Category;
             }
 
-            <li @key="gear.Id" data-id="@gear.Id" class="gear-card @(gear.IsDeleted ? "row-deleted" : "")">
+            <li @key="gear.Id" data-id="@gear.Id" class="gear-card @(gear.IsDeleted ? "row-deleted" : "")"
+                @onclick="() => ShowPhoto(gear)">
                 <div class="gear-card-photo">
                     @if (!string.IsNullOrEmpty(gear.PhotoDataUrl))
                     {
@@ -65,15 +66,24 @@ else
                 </div>
 
                 <div class="gear-card-actions">
-                    <button class="btn btn-small btn-primary" @onclick="() => EditGear(gear)">編集</button>
+                    <button class="btn btn-small btn-primary" @onclick="() => EditGear(gear)"
+                            @onclick:stopPropagation="true">編集</button>
                     @if (canDrag)
                     {
-                        <span class="drag-handle" title="ドラッグして並び替え">☰</span>
+                        <span class="drag-handle" title="ドラッグして並び替え" @onclick:stopPropagation="true">☰</span>
                     }
                 </div>
             </li>
         }
     </ul>
+
+    @if (!string.IsNullOrEmpty(enlargedPhotoUrl))
+    {
+        <div class="photo-overlay" @onclick="ClosePhoto">
+            <img src="@enlargedPhotoUrl" alt="拡大写真" />
+        </div>
+    }
+
 }
 else
 {
@@ -112,6 +122,22 @@ else
     private void EditGear(GearItem gear)
     {
         Navigation.NavigateTo($"gear/edit/{gear.Id}");
+    }
+
+    private string enlargedPhotoUrl = string.Empty;
+
+    private void ShowPhoto(GearItem gear)
+    {
+        if (string.IsNullOrEmpty(gear.PhotoDataUrl))
+        {
+            return;
+        }
+        enlargedPhotoUrl = gear.PhotoDataUrl;
+    }
+
+    private void ClosePhoto()
+    {
+        enlargedPhotoUrl = string.Empty;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
