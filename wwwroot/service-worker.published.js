@@ -42,7 +42,9 @@ self.addEventListener('fetch', event => {
         event.respondWith(
             fetch(event.request)
                 .then(networkResponse => {
-                    if (networkResponse.ok) {
+                    // 他ドメインの画像は「opaque」という形式で返ってきて ok が false になるため、
+                    // opaque の場合もキャッシュに保存する
+                    if (networkResponse.ok || networkResponse.type === 'opaque') {
                         const responseClone = networkResponse.clone();
                         caches.open(CACHE_NAME).then(cache => {
                             cache.put(event.request, responseClone);
@@ -50,7 +52,7 @@ self.addEventListener('fetch', event => {
                     }
                     return networkResponse;
                 })
-                .catch(() => caches.match(event.request))
+                .catch(() => caches.match(event.request).then(cached => cached || Response.error()))
         );
         return;
     }
