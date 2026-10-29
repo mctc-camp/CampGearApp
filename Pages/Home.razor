@@ -57,7 +57,8 @@ else
                 <div class="gear-card-photo">
                     @if (!string.IsNullOrEmpty(gear.PhotoDataUrl))
                     {
-                        <img class="photo-thumb" src="@gear.PhotoDataUrl" alt="@gear.Name" />
+                        <img class="photo-thumb" src="@GetThumbUrl(gear.PhotoDataUrl)" alt="@gear.Name" loading="lazy"
+                             onerror="if(!this.dataset.r){this.dataset.r=1;var i=this;setTimeout(function(){i.src=i.src},1500)}" />
                     }
                 </div>
 
