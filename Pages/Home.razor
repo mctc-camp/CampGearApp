@@ -125,6 +125,12 @@ else
         Navigation.NavigateTo($"gear/edit/{gear.Id}");
     }
 
+    // 一覧のサムネイル用に、小さいサイズの画像を要求する
+    private static string GetThumbUrl(string url)
+    {
+        return url.Replace("sz=w1000", "sz=w200");
+    }
+
     private string enlargedPhotoUrl = string.Empty;
 
     private void ShowPhoto(GearItem gear)
