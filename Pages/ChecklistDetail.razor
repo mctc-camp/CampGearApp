@@ -74,7 +74,10 @@ else
         }
     </ul>
 
-    <button class="btn btn-secondary" @onclick="BackToList">一覧に戻る</button>
+    <div class="form-row">
+        <button class="btn btn-primary" @onclick="EditChecklist">編集</button>
+        <button class="btn btn-secondary" @onclick="BackToList">一覧に戻る</button>
+    </div>
 
     <div class="weight-summary-fixed">
         <div class="weight-summary-item">
@@ -106,5 +109,10 @@ else
     private void BackToList()
     {
         Navigation.NavigateTo("checklists");
+    }
+
+    private void EditChecklist()
+    {
+        Navigation.NavigateTo($"checklists/edit/{ChecklistId}");
     }
 }

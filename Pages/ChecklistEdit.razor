@@ -1,0 +1,282 @@
+@page "/checklists/edit/{ChecklistId:guid}"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@inject GearDataService DataService
+@inject NavigationManager Navigation
+
+<PageTitle>チェックリスト編集</PageTitle>
+
+@if (checklist == null)
+{
+    <p class="error-message">チェックリストが見つかりませんでした。</p>
+    <button class="btn btn-secondary" @onclick="BackToList">一覧に戻る</button>
+}
+else
+{
+    <h1>チェックリストの編集</h1>
+
+    <div class="form-grid">
+        <label>
+            チェックリスト名
+            <input @bind="title" placeholder="例：〇〇キャンプ場" />
+        </label>
+
+        <label>
+            使用日
+            <input type="date" @bind="eventDate" />
+        </label>
+    </div>
+
+    <div class="section-box">
+        <h3>ギアから選ぶ</h3>
+
+        <div class="form-row">
+            <label>
+                カテゴリで絞り込み：
+                <select @bind="filterCategory">
+                    <option value="">すべて表示</option>
+                    @foreach (var cat in DataService.Categories.OrderBy(c => c.SortOrder))
+                    {
+                        <option value="@cat.Name">@cat.Name</option>
+                    }
+                </select>
+            </label>
+        </div>
+
+        @if (filteredGears.Count == 0)
+        {
+            <p class="hint">該当するギアがありません。</p>
+        }
+        else
+        {
+            <ul class="checklist-select-list">
+                @foreach (var gear in filteredGears)
+                {
+                    <li>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked="@selectedGearIds.Contains(gear.Id)"
+                                   @onchange="e => ToggleGear(gear.Id, e.Value)" />
+                            @if (!string.IsNullOrEmpty(gear.PhotoDataUrl))
+                            {
+                                <img class="photo-thumb" src="@gear.PhotoDataUrl" alt="@gear.Name" />
+                            }
+                            @gear.Name
+                            <span class="hint">@GearSuffix(gear)</span>
+                        </label>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+
+    <div class="section-box">
+        <h3>セットから選ぶ（親のみ表示、選ぶと子も一緒に登録されます）</h3>
+
+        @if (availableSets.Count == 0)
+        {
+            <p class="hint">登録されているセットがありません。</p>
+        }
+        else
+        {
+            <ul class="checklist-select-list">
+                @foreach (var set in availableSets)
+                {
+                    var name = DataService.GetSetDisplayName(set);
+                    var photo = DataService.GetSetPhoto(set);
+
+                    <li>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked="@selectedSetIds.Contains(set.Id)"
+                                   @onchange="e => ToggleSet(set.Id, e.Value)" />
+                            @if (!string.IsNullOrEmpty(photo))
+                            {
+                                <img class="photo-thumb" src="@photo" alt="@name" />
+                            }
+                            @name
+                            <span class="hint">（子：@set.ChildGearIds.Count 件）</span>
+                        </label>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+
+    @if (missingEntries.Count > 0)
+    {
+        <div class="section-box">
+            <h3>削除済みの項目</h3>
+            <p class="hint">元のギア・セットが削除されています。チェックを外して更新すると、このチェックリストからも取り除かれます。</p>
+
+            <ul class="checklist-select-list">
+                @foreach (var entry in missingEntries)
+                {
+                    <li>
+                        <label class="checkbox-label">
+                            <input type="checkbox" checked="@IsMissingSelected(entry)"
+                                   @onchange="e => ToggleMissing(entry, e.Value)" />
+                            @entry.SnapshotName
+                        </label>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+
+    <div class="form-row">
+        <button class="btn btn-primary" @onclick="Submit">更新する</button>
+        <button class="btn btn-secondary" @onclick="BackToDetail">戻る</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <p class="error-message">@errorMessage</p>
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid ChecklistId { get; set; }
+
+    private ChecklistItem? checklist;
+    private Guid? initializedId;
+
+    private string title = string.Empty;
+    private DateTime eventDate = DateTime.Today;
+    private string errorMessage = string.Empty;
+    private string filterCategory = string.Empty;
+
+    private HashSet<Guid> selectedGearIds = new();
+    private HashSet<Guid> selectedSetIds = new();
+    private HashSet<Guid> originalGearIds = new();
+
+    protected override void OnParametersSet()
+    {
+        checklist = DataService.FindChecklistById(ChecklistId);
+
+        // 同じチェックリストの編集中に、入力内容が初期化されないようにする
+        if (checklist == null || initializedId == ChecklistId)
+        {
+            return;
+        }
+
+        initializedId = ChecklistId;
+        title = checklist.Title;
+        eventDate = checklist.EventDate;
+
+        selectedGearIds = checklist.Entries
+            .Where(e => e.EntryType == ChecklistEntryType.Gear && e.GearId.HasValue)
+            .Select(e => e.GearId!.Value)
+            .ToHashSet();
+
+        selectedSetIds = checklist.Entries
+            .Where(e => e.EntryType == ChecklistEntryType.Set && e.SetId.HasValue)
+            .Select(e => e.SetId!.Value)
+            .ToHashSet();
+
+        originalGearIds = new HashSet<Guid>(selectedGearIds);
+    }
+
+    private int GetCategorySortOrder(string categoryName)
+    {
+        var cat = DataService.Categories.FirstOrDefault(c => c.Name == categoryName);
+        return cat?.SortOrder ?? int.MaxValue;
+    }
+
+    // 紛失・廃棄済みでも、すでにチェックリストに入っているギアは表示する
+    private List<GearItem> filteredGears =>
+        DataService.Gears
+            .Where(g => !g.IsDeleted || originalGearIds.Contains(g.Id))
+            .Where(g => string.IsNullOrEmpty(filterCategory) || g.Category == filterCategory)
+            .OrderBy(g => GetCategorySortOrder(g.Category))
+            .ThenBy(g => g.IsDeleted)
+            .ThenBy(g => g.SortOrder)
+            .ToList();
+
+    private List<SetItem> availableSets => DataService.Sets.OrderBy(s => s.SortOrder).ToList();
+
+    // 元のギア・セットが物理削除されている項目
+    private List<ChecklistEntry> missingEntries
+    {
+        get
+        {
+            if (checklist == null)
+            {
+                return new List<ChecklistEntry>();
+            }
+
+            return checklist.Entries
+                .Where(e => e.EntryType == ChecklistEntryType.Gear
+                    ? DataService.FindGearById(e.GearId ?? Guid.Empty) == null
+                    : DataService.FindSetById(e.SetId ?? Guid.Empty) == null)
+                .ToList();
+        }
+    }
+
+    private static string GearSuffix(GearItem gear)
+    {
+        return gear.IsDeleted ? $"（{gear.Category}・紛失/廃棄済み）" : $"（{gear.Category}）";
+    }
+
+    private bool IsMissingSelected(ChecklistEntry entry)
+    {
+        return entry.EntryType == ChecklistEntryType.Gear
+            ? selectedGearIds.Contains(entry.GearId ?? Guid.Empty)
+            : selectedSetIds.Contains(entry.SetId ?? Guid.Empty);
+    }
+
+    private void ToggleMissing(ChecklistEntry entry, object? checkedValue)
+    {
+        if (entry.EntryType == ChecklistEntryType.Gear)
+        {
+            ToggleGear(entry.GearId ?? Guid.Empty, checkedValue);
+        }
+        else
+        {
+            ToggleSet(entry.SetId ?? Guid.Empty, checkedValue);
+        }
+    }
+
+    private void ToggleGear(Guid gearId, object? checkedValue)
+    {
+        var isChecked = checkedValue is bool b && b;
+        if (isChecked)
+        {
+            selectedGearIds.Add(gearId);
+        }
+        else
+        {
+            selectedGearIds.Remove(gearId);
+        }
+    }
+
+    private void ToggleSet(Guid setId, object? checkedValue)
+    {
+        var isChecked = checkedValue is bool b && b;
+        if (isChecked)
+        {
+            selectedSetIds.Add(setId);
+        }
+        else
+        {
+            selectedSetIds.Remove(setId);
+        }
+    }
+
+    private void Submit()
+    {
+        if (DataService.UpdateChecklist(ChecklistId, title, eventDate, selectedGearIds, selectedSetIds, out errorMessage))
+        {
+            Navigation.NavigateTo($"checklists/{ChecklistId}");
+        }
+    }
+
+    private void BackToDetail()
+    {
+        Navigation.NavigateTo($"checklists/{ChecklistId}");
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("checklists");
+    }
+}

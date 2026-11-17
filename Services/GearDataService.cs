@@ -704,6 +704,116 @@ public class GearDataService
         NotifyChangeAndSave();
     }
 
+    private int CategorySortKey(string categoryName)
+    {
+        var cat = Categories.FirstOrDefault(c => c.Name == categoryName);
+        return cat?.SortOrder ?? int.MaxValue;
+    }
+
+    private ChecklistEntry CreateGearEntry(GearItem gear)
+    {
+        return new ChecklistEntry
+        {
+            EntryType = ChecklistEntryType.Gear,
+            GearId = gear.Id,
+            SnapshotName = gear.Name,
+            SnapshotPhoto = gear.PhotoDataUrl
+        };
+    }
+
+    private ChecklistEntry CreateSetEntry(SetItem set)
+    {
+        var entry = new ChecklistEntry
+        {
+            EntryType = ChecklistEntryType.Set,
+            SetId = set.Id,
+            SnapshotName = GetSetDisplayName(set),
+            SnapshotPhoto = GetSetPhoto(set)
+        };
+
+        foreach (var childId in set.ChildGearIds)
+        {
+            var childGear = FindGearById(childId);
+            if (childGear == null) continue;
+
+            entry.ChildrenSnapshot.Add(new ChecklistChildSnapshot
+            {
+                GearId = childGear.Id,
+                Name = childGear.Name,
+                PhotoDataUrl = childGear.PhotoDataUrl
+            });
+        }
+
+        return entry;
+    }
+
+    // 既存のチェックリストを、編集後の内容で更新する
+    public bool UpdateChecklist(Guid checklistId, string title, DateTime eventDate,
+        IEnumerable<Guid> gearIds, IEnumerable<Guid> setIds, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+
+        var checklist = FindChecklistById(checklistId);
+        if (checklist == null)
+        {
+            errorMessage = "チェックリストが見つかりませんでした。";
+            return false;
+        }
+
+        title = title.Trim();
+        if (string.IsNullOrEmpty(title))
+        {
+            errorMessage = "チェックリスト名を入力してください。";
+            return false;
+        }
+
+        var selectedGearIds = gearIds.ToHashSet();
+        var selectedSetIds = setIds.ToHashSet();
+
+        // 選択が外された項目を取り除く（残した項目はチェック状態もそのまま維持される）
+        checklist.Entries.RemoveAll(e =>
+            e.EntryType == ChecklistEntryType.Gear
+                ? !(e.GearId.HasValue && selectedGearIds.Contains(e.GearId.Value))
+                : !(e.SetId.HasValue && selectedSetIds.Contains(e.SetId.Value)));
+
+        // 新しく選ばれたギアを、カテゴリ順・ギア一覧順で末尾に追加する
+        var existingGearIds = checklist.Entries
+            .Where(e => e.EntryType == ChecklistEntryType.Gear && e.GearId.HasValue)
+            .Select(e => e.GearId!.Value)
+            .ToHashSet();
+
+        var newGears = Gears
+            .Where(g => selectedGearIds.Contains(g.Id) && !existingGearIds.Contains(g.Id))
+            .OrderBy(g => CategorySortKey(g.Category))
+            .ThenBy(g => g.SortOrder);
+
+        foreach (var gear in newGears)
+        {
+            checklist.Entries.Add(CreateGearEntry(gear));
+        }
+
+        // 新しく選ばれたセットを追加する
+        var existingSetIds = checklist.Entries
+            .Where(e => e.EntryType == ChecklistEntryType.Set && e.SetId.HasValue)
+            .Select(e => e.SetId!.Value)
+            .ToHashSet();
+
+        var newSets = Sets
+            .Where(s => selectedSetIds.Contains(s.Id) && !existingSetIds.Contains(s.Id))
+            .OrderBy(s => s.SortOrder);
+
+        foreach (var set in newSets)
+        {
+            checklist.Entries.Add(CreateSetEntry(set));
+        }
+
+        checklist.Title = title;
+        checklist.EventDate = eventDate.Date;
+
+        NotifyChangeAndSave();
+        return true;
+    }
+
     public void SaveChecklistChange()
     {
         NotifyChangeAndSave();
