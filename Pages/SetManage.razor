@@ -15,7 +15,7 @@
             親をギアから選ぶ（任意）
             <select @bind="newSetLinkedGearId">
                 <option value="">（ギアを選ばず名前だけで登録する）</option>
-                @foreach (var gear in DataService.Gears.Where(g => !g.IsDeleted).OrderBy(g => g.Name))
+                @foreach (var gear in SortedActiveGears)
                 {
                     <option value="@gear.Id">@gear.Category / @gear.Name</option>
                 }
@@ -89,7 +89,7 @@
                 <div class="form-row add-child-row">
                     <select @bind:get="GetSelectedChildId(set.Id)" @bind:set="v => SetSelectedChildId(set.Id, v)">
                         <option value="">子に追加するギアを選択</option>
-                        @foreach (var gear in DataService.Gears.Where(g => !g.IsDeleted).OrderBy(g => g.Name))
+                        @foreach (var gear in SortedActiveGears)
                         {
                             <option value="@gear.Id">@gear.Category / @gear.Name</option>
                         }
@@ -120,9 +120,9 @@
         return selectedChildGearId.TryGetValue(setId, out var value) ? value : string.Empty;
     }
 
-    private void SetSelectedChildId(Guid setId, string value)
+    private void SetSelectedChildId(Guid setId, string? value)
     {
-        selectedChildGearId[setId] = value;
+        selectedChildGearId[setId] = value ?? string.Empty;
     }
 
     private void AddSet()
@@ -178,4 +178,17 @@
     {
         DataService.RemoveChildFromSet(set, gearId);
     }
+
+    private int GetCategorySortOrder(string categoryName)
+    {
+        var cat = DataService.Categories.FirstOrDefault(c => c.Name == categoryName);
+        return cat?.SortOrder ?? int.MaxValue;
+    }
+
+    // カテゴリマスタ順 → 同じカテゴリ内はギア一覧の並び順
+    private IEnumerable<GearItem> SortedActiveGears =>
+        DataService.Gears
+            .Where(g => !g.IsDeleted)
+            .OrderBy(g => GetCategorySortOrder(g.Category))
+            .ThenBy(g => g.SortOrder);
 }
