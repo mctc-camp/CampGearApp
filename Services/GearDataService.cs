@@ -700,8 +700,16 @@ public class GearDataService
 
     public void RemoveChecklist(ChecklistItem checklist)
     {
+        var photoUrls = checklist.Photos.Select(p => p.Url).ToList();
+
         Checklists.Remove(checklist);
         NotifyChangeAndSave();
+
+        // 記録の写真も、Googleドライブのゴミ箱に移動する
+        foreach (var url in photoUrls)
+        {
+            _ = DeletePhotoAsync(url);
+        }
     }
 
     private int CategorySortKey(string categoryName)
@@ -817,6 +825,13 @@ public class GearDataService
     public void SaveChecklistChange()
     {
         NotifyChangeAndSave();
+    }
+
+    // 保存が終わるまで待つ（写真を1枚ずつ確実に保存したいとき用）
+    public async Task SaveNowAsync()
+    {
+        NotifyChange();
+        await SaveToServerAsync();
     }
 
     public (string Name, string Photo) GetDisplayParentInfo(ChecklistEntry entry)

@@ -34,6 +34,7 @@ else
                 <div class="checklist-card-actions">
                     <button class="btn btn-small btn-primary" @onclick="() => OpenChecklist(checklist)">開く</button>
                     <button class="btn btn-small btn-danger" @onclick="() => DeleteChecklist(checklist)">削除</button>
+                    <button class="btn btn-small btn-secondary" @onclick="() => OpenRecord(checklist)">記録</button>
                 </div>
             </li>
         }
@@ -51,9 +52,19 @@ else
         Navigation.NavigateTo($"checklists/{checklist.Id}");
     }
 
+    private void OpenRecord(ChecklistItem checklist)
+    {
+        Navigation.NavigateTo($"checklists/record/{checklist.Id}");
+    }
+
     private async Task DeleteChecklist(ChecklistItem checklist)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"「{checklist.Title}」を削除します。よろしいですか？（この操作は元に戻せません）");
+        var photoNote = checklist.Photos.Count > 0
+            ? $"\n記録の写真{checklist.Photos.Count}枚も削除されます。"
+            : string.Empty;
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"「{checklist.Title}」を削除します。よろしいですか？（この操作は元に戻せません）{photoNote}");
         if (!confirmed)
         {
             return;

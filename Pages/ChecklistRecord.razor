@@ -1,0 +1,263 @@
+@page "/checklists/record/{ChecklistId:guid}"
+@using CampGearApp.Models
+@using CampGearApp.Services
+@inject GearDataService DataService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>キャンプ記録</PageTitle>
+
+@if (notFound)
+{
+    <p class="error-message">チェックリストが見つかりませんでした。</p>
+    <button class="btn btn-secondary" @onclick="BackToList">一覧に戻る</button>
+}
+else
+{
+    <h1>@checklist.Title</h1>
+    <p class="hint">使用日：@checklist.EventDate.ToString("yyyy/MM/dd")</p>
+
+    <div class="form-grid">
+        <label>
+            チェックイン
+            <input type="time"
+                   @bind="checklist.CheckInTime"
+                   @bind:format="HH:mm"
+                   @bind:after="DataService.SaveChecklistChange" />
+        </label>
+
+        <label>
+            チェックアウト
+            <input type="time"
+                   @bind="checklist.CheckOutTime"
+                   @bind:format="HH:mm"
+                   @bind:after="DataService.SaveChecklistChange" />
+        </label>
+
+        <label>
+            サイト名
+            <input @bind="checklist.SiteName"
+                   @bind:after="DataService.SaveChecklistChange"
+                   placeholder="例：A-3サイト" />
+        </label>
+
+        <label>
+            料金(円)
+            <input inputmode="numeric" autocomplete="off"
+                   @bind="FeeText"
+                   @bind:after="DataService.SaveChecklistChange" />
+        </label>
+
+        <label class="full-width">
+            備考
+            <textarea rows="@GetNoteRows()"
+                      @bind="checklist.Note"
+                      @bind:after="DataService.SaveChecklistChange"></textarea>
+        </label>
+    </div>
+
+    <div class="section-box">
+        <h3>写真</h3>
+
+        <InputFile OnChange="OnPhotosSelected" accept="image/*" multiple />
+
+        @if (uploadTotal > 0)
+        {
+            <p class="hint">アップロード中です…（@uploadDone / @uploadTotal）</p>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <p class="error-message">@errorMessage</p>
+        }
+
+        @if (!string.IsNullOrEmpty(DataService.LastErrorMessage))
+        {
+            <p class="error-message">@DataService.LastErrorMessage</p>
+        }
+
+        @if (checklist.Photos.Count == 0)
+        {
+            <p class="hint">まだ写真がありません。</p>
+        }
+        else
+        {
+            <div class="record-photo-grid">
+                @foreach (var photo in checklist.Photos)
+                {
+                    <div class="record-photo-item" @key="photo.Id" @onclick="() => ShowPhoto(photo)">
+                        <img src="@ThumbUrl(photo.Url)" alt="記録写真" loading="lazy"
+                             onerror="if(!this.dataset.r){this.dataset.r=1;var i=this;setTimeout(function(){i.src=i.src},1500)}" />
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <button class="btn btn-secondary" @onclick="BackToList">戻る</button>
+
+    @if (enlarged != null)
+    {
+        <div class="photo-overlay record-overlay" @onclick="ClosePhoto">
+            <img src="@EnlargedUrl" alt="拡大写真" onerror="@FallbackScript(EnlargedUrl)" />
+            <button class="btn btn-danger photo-overlay-delete"
+                    @onclick="DeleteEnlargedPhoto"
+                    @onclick:stopPropagation="true">この写真を削除</button>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid ChecklistId { get; set; }
+
+    private ChecklistItem checklist = new();
+    private bool notFound;
+
+    private ChecklistPhoto? enlarged;
+    private int uploadTotal;
+    private int uploadDone;
+    private string errorMessage = string.Empty;
+
+    private string EnlargedUrl => enlarged?.Url ?? string.Empty;
+
+    // 料金は文字入力欄で受け取り、全角数字を半角に直して数字だけを取り出す
+    private string FeeText
+    {
+        get => checklist.Fee?.ToString() ?? string.Empty;
+        set
+        {
+            var digits = new string((value ?? string.Empty)
+                .Select(c => c >= '０' && c <= '９' ? (char)('0' + (c - '０')) : c)
+                .Where(char.IsAsciiDigit)
+                .ToArray());
+
+            if (digits.Length == 0)
+            {
+                checklist.Fee = null;
+            }
+            else if (int.TryParse(digits, out var n))
+            {
+                checklist.Fee = n;
+            }
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        var found = DataService.FindChecklistById(ChecklistId);
+        if (found == null)
+        {
+            notFound = true;
+            return;
+        }
+
+        notFound = false;
+        checklist = found;
+    }
+
+    // 備考の行数に応じて、入力欄の高さを調整する（最低2行、最大10行）
+    private int GetNoteRows()
+    {
+        if (string.IsNullOrEmpty(checklist.Note))
+        {
+            return 2;
+        }
+
+        return Math.Clamp(checklist.Note.Split('\n').Length, 2, 10);
+    }
+
+    private static string ThumbUrl(string url)
+    {
+        return url.Replace("sz=w1000", "sz=w300");
+    }
+
+    private static string FallbackScript(string url)
+    {
+        return $"this.onerror=null;this.src='{ThumbUrl(url)}'";
+    }
+
+    private void ShowPhoto(ChecklistPhoto photo)
+    {
+        enlarged = photo;
+    }
+
+    private void ClosePhoto()
+    {
+        enlarged = null;
+    }
+
+    private async Task OnPhotosSelected(InputFileChangeEventArgs e)
+    {
+        errorMessage = string.Empty;
+
+        IReadOnlyList<IBrowserFile> files;
+        try
+        {
+            files = e.GetMultipleFiles(20);
+        }
+        catch (Exception)
+        {
+            errorMessage = "一度に選べる写真は20枚までです。";
+            return;
+        }
+
+        uploadTotal = files.Count;
+        uploadDone = 0;
+        StateHasChanged();
+
+        foreach (var file in files)
+        {
+            try
+            {
+                var resized = await file.RequestImageFileAsync(file.ContentType, 1200, 1200);
+
+                using var stream = resized.OpenReadStream(5 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+
+                var url = await DataService.UploadPhotoAsync(ms.ToArray(), resized.Name, resized.ContentType);
+                if (!string.IsNullOrEmpty(url))
+                {
+                    checklist.Photos.Add(new ChecklistPhoto { Url = url });
+                    await DataService.SaveNowAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"写真のアップロードに失敗しました：{ex.Message}";
+            }
+
+            uploadDone++;
+            StateHasChanged();
+        }
+
+        uploadTotal = 0;
+        StateHasChanged();
+    }
+
+    private async Task DeleteEnlargedPhoto()
+    {
+        var target = enlarged;
+        if (target == null)
+        {
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "この写真を削除します。よろしいですか？（この操作は元に戻せません）");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        enlarged = null;
+        checklist.Photos.Remove(target);
+        await DataService.SaveNowAsync();
+        _ = DataService.DeletePhotoAsync(target.Url);
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("checklists");
+    }
+}
