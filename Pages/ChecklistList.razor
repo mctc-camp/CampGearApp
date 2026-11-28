@@ -19,6 +19,8 @@
 }
 else
 {
+    var numbers = BuildNumbers();
+
     <ul class="checklist-card-list">
         @foreach (var checklist in DataService.Checklists.OrderByDescending(c => c.EventDate))
         {
@@ -26,6 +28,10 @@ else
             var checkedCount = checklist.Entries.Count(e => e.IsChecked);
 
             <li class="checklist-card">
+                <div class="checklist-card-no"
+                     style="flex:0 0 auto;min-width:2.2em;margin-right:8px;align-self:center;text-align:center;font-weight:bold;">
+                    @numbers[checklist.Id]
+                </div>
                 <div class="checklist-card-main">
                     <div class="checklist-card-date">@checklist.EventDate.ToString("yyyy/MM/dd")</div>
                     <div class="checklist-card-title">@checklist.Title</div>
@@ -42,6 +48,18 @@ else
 }
 
 @code {
+    // Noは保存せず、表示のたびに「使用日が古い順」で1から数える。
+    // 間に新しいチェックリストが入ったり、使用日を変えたりしても、自動で採番し直される。
+    // 使用日が同じ場合は、作成日が古い方を先にする（それも同じなら登録順）。
+    private Dictionary<Guid, int> BuildNumbers()
+    {
+        return DataService.Checklists
+            .OrderBy(c => c.EventDate)
+            .ThenBy(c => c.CreatedDate)
+            .Select((c, index) => new { c.Id, No = index + 1 })
+            .ToDictionary(x => x.Id, x => x.No);
+    }
+
     private void GoToNew()
     {
         Navigation.NavigateTo("checklists/new");
