@@ -53,6 +53,8 @@ public class ChecklistItem
     public TimeOnly? CheckInTime { get; set; }
     public TimeOnly? CheckOutTime { get; set; }
     public string SiteName { get; set; } = string.Empty;
+    // キャンプ場のHPや予約サイトのURL
+    public string SiteUrl { get; set; } = string.Empty;
     public int? Fee { get; set; }
     public string Note { get; set; } = string.Empty;
     public List<ChecklistPhoto> Photos { get; set; } = new();

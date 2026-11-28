@@ -20,18 +20,50 @@ else
     <div class="form-grid">
         <label>
             チェックイン
-            <input type="time"
-                   @bind="checklist.CheckInTime"
-                   @bind:format="HH:mm"
-                   @bind:after="DataService.SaveChecklistChange" />
+            <div style="display:flex;gap:6px;align-items:center;">
+                <select style="flex:1;min-width:0;font-size:16px;"
+                        value="@HourText(checklist.CheckInTime)"
+                        @onchange="OnCheckInHourChanged">
+                    <option value="">--</option>
+                    @for (var h = 0; h < 24; h++)
+                    {
+                        <option value="@h">@h 時</option>
+                    }
+                </select>
+                <select style="flex:1;min-width:0;font-size:16px;"
+                        value="@MinuteText(checklist.CheckInTime)"
+                        disabled="@(!checklist.CheckInTime.HasValue)"
+                        @onchange="OnCheckInMinuteChanged">
+                    @foreach (var m in MinuteChoices(checklist.CheckInTime))
+                    {
+                        <option value="@m">@m.ToString("00") 分</option>
+                    }
+                </select>
+            </div>
         </label>
 
         <label>
             チェックアウト
-            <input type="time"
-                   @bind="checklist.CheckOutTime"
-                   @bind:format="HH:mm"
-                   @bind:after="DataService.SaveChecklistChange" />
+            <div style="display:flex;gap:6px;align-items:center;">
+                <select style="flex:1;min-width:0;font-size:16px;"
+                        value="@HourText(checklist.CheckOutTime)"
+                        @onchange="OnCheckOutHourChanged">
+                    <option value="">--</option>
+                    @for (var h = 0; h < 24; h++)
+                    {
+                        <option value="@h">@h 時</option>
+                    }
+                </select>
+                <select style="flex:1;min-width:0;font-size:16px;"
+                        value="@MinuteText(checklist.CheckOutTime)"
+                        disabled="@(!checklist.CheckOutTime.HasValue)"
+                        @onchange="OnCheckOutMinuteChanged">
+                    @foreach (var m in MinuteChoices(checklist.CheckOutTime))
+                    {
+                        <option value="@m">@m.ToString("00") 分</option>
+                    }
+                </select>
+            </div>
         </label>
 
         <label>
@@ -39,6 +71,29 @@ else
             <input @bind="checklist.SiteName"
                    @bind:after="DataService.SaveChecklistChange"
                    placeholder="例：A-3サイト" />
+        </label>
+
+        <label class="full-width url-field">
+            キャンプ場・予約サイトのURL
+            <div class="url-input-row" style="display:flex;gap:8px;align-items:center;">
+                <input style="flex:1;min-width:0;"
+                       value="@checklist.SiteUrl"
+                       @oninput="OnSiteUrlInput"
+                       @onchange="OnSiteUrlChanged"
+                       inputmode="url" autocomplete="off"
+                       placeholder="https://..." />
+                @if (IsOpenableUrl(checklist.SiteUrl))
+                {
+                    <a class="btn btn-small btn-primary" style="white-space:nowrap;"
+                       href="@checklist.SiteUrl.Trim()" target="_blank" rel="noopener noreferrer">
+                        このURLを開く
+                    </a>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(checklist.SiteUrl) && !IsOpenableUrl(checklist.SiteUrl))
+            {
+                <span class="hint">http:// または https:// から入力すると、開くボタンが表示されます。</span>
+            }
         </label>
 
         <label>
@@ -165,6 +220,93 @@ else
         }
 
         return Math.Clamp(checklist.Note.Split('\n').Length, 2, 10);
+    }
+
+    // URLは、入力中は画面に反映し、入力欄から離れたときに保存する
+    private void OnSiteUrlInput(ChangeEventArgs e)
+    {
+        checklist.SiteUrl = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnSiteUrlChanged(ChangeEventArgs e)
+    {
+        checklist.SiteUrl = (e.Value?.ToString() ?? string.Empty).Trim();
+        DataService.SaveChecklistChange();
+    }
+
+    // ---- チェックイン・チェックアウト時刻（時と分の選択式） ----
+    private static string HourText(TimeOnly? t) => t.HasValue ? t.Value.Hour.ToString() : string.Empty;
+
+    private static string MinuteText(TimeOnly? t) => t.HasValue ? t.Value.Minute.ToString() : "0";
+
+    // 分の選択肢は00と30。ただし過去に入れた別の分(例：15)が残っている場合は、消えないよう選択肢に加える
+    private static List<int> MinuteChoices(TimeOnly? t)
+    {
+        var list = new List<int> { 0, 30 };
+        if (t.HasValue && !list.Contains(t.Value.Minute))
+        {
+            list.Add(t.Value.Minute);
+            list.Sort();
+        }
+
+        return list;
+    }
+
+    private static TimeOnly? ChangeHour(TimeOnly? current, string? value)
+    {
+        if (string.IsNullOrEmpty(value) || !int.TryParse(value, out var hour))
+        {
+            return null;
+        }
+
+        return new TimeOnly(hour, current?.Minute ?? 0);
+    }
+
+    private static TimeOnly? ChangeMinute(TimeOnly? current, string? value)
+    {
+        if (!current.HasValue || !int.TryParse(value, out var minute))
+        {
+            return current;
+        }
+
+        return new TimeOnly(current.Value.Hour, minute);
+    }
+
+    private void OnCheckInHourChanged(ChangeEventArgs e)
+    {
+        checklist.CheckInTime = ChangeHour(checklist.CheckInTime, e.Value?.ToString());
+        DataService.SaveChecklistChange();
+    }
+
+    private void OnCheckInMinuteChanged(ChangeEventArgs e)
+    {
+        checklist.CheckInTime = ChangeMinute(checklist.CheckInTime, e.Value?.ToString());
+        DataService.SaveChecklistChange();
+    }
+
+    private void OnCheckOutHourChanged(ChangeEventArgs e)
+    {
+        checklist.CheckOutTime = ChangeHour(checklist.CheckOutTime, e.Value?.ToString());
+        DataService.SaveChecklistChange();
+    }
+
+    private void OnCheckOutMinuteChanged(ChangeEventArgs e)
+    {
+        checklist.CheckOutTime = ChangeMinute(checklist.CheckOutTime, e.Value?.ToString());
+        DataService.SaveChecklistChange();
+    }
+
+    // http:// または https:// で始まるURLだけ「開く」ボタンを出す
+    private static bool IsOpenableUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return false;
+        }
+
+        var t = url.Trim();
+        return t.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || t.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ThumbUrl(string url)
